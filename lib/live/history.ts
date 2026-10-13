@@ -12,7 +12,7 @@ import { settleProfit } from "@/lib/engine/track-record";
 import type { LiveBundle } from "./assemble";
 import { betTypeOf, GAME_EXPOSURE, MODEL_VERSION } from "./policy";
 import { getJson } from "./http";
-import { candidates, topPicks } from "@/lib/ours";
+import { candidates, ourParlays, topPicks } from "@/lib/ours";
 import { sameTeam, type Game } from "./registry";
 import { dayKey } from "./day";
 import { toNflverseAbbr, type NflPlayers } from "./players/nfl";
@@ -98,21 +98,7 @@ export async function updateHistory(prev: TrackedPick[], board: LiveBundle, card
         americanOdds: b.bestQuote.americanOdds, units: 1, modelProb: b.modelProb, edgeAtPick: b.edge, betType: "locks",
         grade: { matchupId: b.matchupId, market: b.market, side: b.side, line: b.line, home: c.matchup.home.name, away: c.matchup.away.name, start: c.matchup.startTime } });
     }
-    // 3) the day's parlays, logged when their first leg is about to start: one per tier, and the first option in
-    // that tier whose games aren't already riding on another logged parlay or a logged game line
-    for (const p of d.parlays) {
-      const legs = p.legs.map((l) => legGrade(l.refId, l.americanOdds, card, d.props));
-      if (legs.some((l) => !l)) continue;
-      const first = legs.map((l) => l!.start!).sort()[0];
-      const id = first ? `parlay:${dayKey(first)}:${p.tier}` : "";
-      if (byId.has(id) || !first || !inWindow(first)) continue;
-      const games = [...new Set(p.legs.map((l) => l.matchupId))];
-      if (games.some((g) => parlayGames.has(g) || lineIn.has(g))) continue;
-      for (const g of games) parlayGames.add(g);
-      add({ ...base, id, league: card.get(p.legs[0].matchupId)?.matchup.league ?? "NFL", kind: "parlay", label: `${p.title}: ${p.legs.map((l) => l.label).join(" + ")}`,
-        americanOdds: p.combinedAmericanOdds, units: 0.5, modelProb: p.modelHitProb, edgeAtPick: p.modelHitProb - p.impliedHitProb, betType: "parlays",
-        grade: { matchupId: p.legs[0].matchupId, market: "parlay", legs: legs.map((l) => l!) } });
-    }
+    // (3) the old engine-tier parlays are no longer logged: the site's own parlays (5) replace them
   }
 
   // 4) Our Picks: when a game enters the log window, log its top 3 "most likely to hit" bets,
@@ -126,6 +112,22 @@ export async function updateHistory(prev: TrackedPick[], board: LiveBundle, card
       if (byId.has(id)) continue;
       add({ ...base, id, league: c.matchup.league, kind: "ours", label: `${x.label} (${c.matchup.away.shortName} @ ${c.matchup.home.shortName})`,
         americanOdds: x.odds, units: 1, modelProb: x.our, edgeAtPick: x.our - x.books, betType: "our picks", grade: x.grade });
+    }
+  }
+
+  // 5) Our parlays: the site's own Safest 2-leg, Safest 3-leg and Moneyline parlay, built from games starting in the
+  // next 12 hours and logged when their first leg's game enters the log window. One of each per day, 1 unit each.
+  const soonCards = cards.filter((c) => c.matchup.status === "scheduled" && minsTo(c.matchup.startTime) > 0 && minsTo(c.matchup.startTime) <= 12 * 60);
+  if (soonCards.some((c) => inWindow(c.matchup.startTime))) {
+    for (const pl of ourParlays(candidates(soonCards, board.byDay.all.props))) {
+      const first = pl.legs.map((l) => card.get(l.matchupId)!.matchup.startTime).sort()[0];
+      if (!inWindow(first)) continue;
+      const id = `ourparlay:${dayKey(first)}:${pl.title}`;
+      if (byId.has(id)) continue;
+      const our = pl.legs.reduce((x, l) => x * l.our, 1), books = pl.legs.reduce((x, l) => x * l.books, 1);
+      add({ ...base, id, league: card.get(pl.legs[0].matchupId)!.matchup.league, kind: "ourparlay", label: `${pl.title}: ${pl.legs.map((l) => l.label).join(" + ")}`,
+        americanOdds: decimalToAmerican(parlayDecimal(pl.legs.map((l) => l.odds))), units: 1, modelProb: our, edgeAtPick: our - books, betType: "our parlays",
+        grade: { matchupId: pl.legs[0].matchupId, market: "parlay", legs: pl.legs.map((l) => ({ ...l.grade, americanOdds: l.odds, label: `${l.label} (${card.get(l.matchupId)!.matchup.away.shortName} @ ${card.get(l.matchupId)!.matchup.home.shortName})` })) } });
     }
   }
 

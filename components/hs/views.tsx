@@ -283,7 +283,56 @@ export function ParlaysPage({ bundle }: { bundle: LiveBundle }) {
       {mode === "mixed" ? <ParlayIdeas rows={rows} seed={bundle.generatedAt + league} count={10} />
         : mode === "sure" ? <ParlayIdeas rows={rows} seed={bundle.generatedAt} count={16} mode="sure" />
         : <ParlayIdeas rows={mlRows} seed={bundle.generatedAt + "ml"} count={10} mode="ml" />}
+      <OurParlayRecord data={data} />
     </>
+  );
+}
+
+/** The site's own parlays: logged before each day's games, graded leg by leg. */
+function OurParlayRecord({ data }: { data: LiveBundle["byDay"]["all"] }) {
+  const rec = data.parlayRecord;
+  const picks = data.parlayPicks ?? [];
+  const decided = rec ? rec.wins + rec.losses : 0;
+  const tiles = [
+    { k: "Record", v: rec ? `${rec.wins}-${rec.losses}${rec.pushes ? `-${rec.pushes}` : ""}` : "0-0" },
+    { k: "Hit rate", v: decided ? `${Math.round((rec!.wins / decided) * 100)}%` : "—" },
+    { k: "Units", v: rec ? fmtUnits(rec.unitsProfit) : "+0.00u", tone: rec && rec.unitsProfit < 0 ? "text-loss" : "text-neon" },
+    { k: "ROI", v: rec && rec.picks ? `${(rec.roi * 100).toFixed(1)}%` : "—" },
+  ];
+  const mark = (r?: string) => (r === "win" ? <b className="text-neon">✓</b> : r === "loss" ? <b className="text-loss">✗</b> : r === "void" || r === "push" ? <b className="text-muted-foreground">void</b> : <span className="text-muted-foreground">•</span>);
+  return (
+    <div className="mt-12">
+      <Section title="Our parlay record">
+        <p className="-mt-1 mb-4 text-sm text-muted-foreground">Every day, shortly before the first games, the site logs its own Safest 2-leg, Safest 3-leg and Moneyline parlay (1 unit each, best prices) and grades them automatically. Separate from your bets and from Our Picks.</p>
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {tiles.map((t) => (
+            <div key={t.k} className="rounded-xl border border-slate-line bg-slate-card p-4">
+              <div className={cn("text-3xl font-black tabular-nums", t.tone)}>{t.v}</div>
+              <div className="text-sm font-semibold text-muted-foreground">{t.k}</div>
+            </div>
+          ))}
+        </div>
+        {!picks.length && <Empty text="No parlays logged yet. The first ones log about an hour before the next games." />}
+        <div className="grid gap-3 md:grid-cols-2">
+          {picks.map((p) => (
+            <div key={p.id} className="rounded-xl border border-slate-line bg-slate-card p-4 text-sm">
+              <div className="mb-2 flex items-baseline justify-between gap-2">
+                <div className="font-bold">{p.label.split(":")[0]} <span className="text-xs font-normal text-muted-foreground">{new Date(p.placedAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span></div>
+                <span className={cn("shrink-0 rounded px-2 py-0.5 text-xs font-bold", p.result === "win" ? "bg-neon/15 text-neon" : p.result === "loss" ? "bg-loss/15 text-loss" : "bg-slate-raised text-ink/70")}>
+                  {p.result === "win" ? `✓ +${(p.profitUnits ?? 0).toFixed(2)}u` : p.result === "loss" ? "✗ -1u" : p.result === "pending" ? `${fmtAmerican(p.americanOdds)} · pending` : p.result}
+                </span>
+              </div>
+              <ul className="space-y-1">
+                {(p.grade?.legs ?? []).map((l, i) => (
+                  <li key={i} className="flex items-baseline justify-between gap-2"><span className="min-w-0">{mark(l.result)} {l.label ?? l.side}</span><span className="shrink-0 tabular-nums text-muted-foreground">{fmtAmerican(l.americanOdds)}</span></li>
+                ))}
+              </ul>
+              <div className="mt-2 text-[11px] text-muted-foreground">Our chance {Math.round(p.modelProb * 100)}% at {fmtAmerican(p.americanOdds)}</div>
+            </div>
+          ))}
+        </div>
+      </Section>
+    </div>
   );
 }
 

@@ -409,7 +409,7 @@ export interface TrackedPick {
   placedAt: string;
   settledAt?: string;
   league: LeagueId;
-  kind: "single" | "prop" | "alt" | "parlay" | "lock" | "ours";
+  kind: "single" | "prop" | "alt" | "parlay" | "lock" | "ours" | "ourparlay";
   label: string;
   americanOdds: number;
   units: number;
@@ -440,7 +440,7 @@ export interface GradeInfo {
   stat?: string;
   homeAbbr?: string;
   awayAbbr?: string;
-  legs?: (GradeInfo & { americanOdds: number; result?: PickResult })[];
+  legs?: (GradeInfo & { americanOdds: number; result?: PickResult; label?: string })[];
 }
 
 /**
@@ -583,6 +583,9 @@ export interface DashboardData {
   oursCheck?: ModelCheck;
   /** Our Picks, newest first (last 150). */
   oursPicks?: TrackedPick[];
+  /** The site's own parlays (logged before the day's games) and their record. */
+  parlayRecord?: TrackRecordSummary;
+  parlayPicks?: TrackedPick[];
   /** trackRecord without parlays and props: game picks and alt lines only. */
   straightRecord?: TrackRecordSummary;
   /** Calibration and closing-line check for the current model's straight bets. */

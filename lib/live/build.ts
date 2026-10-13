@@ -34,10 +34,11 @@ import { pausedTypes, qualifies } from "./policy";
 import { updateHistory } from "./history";
 import { tdDerby } from "./td-derby";
 import { gameWhy, propContext } from "./why";
+import { refreshTennisOdds, tennisGames, tennisPrediction } from "./sources/tennis";
 import { impliedProb as implied, normCdf as normCdfLocal, normInv } from "@/lib/odds-math";
 
 /** Hunter Sports Plus: everything but football (that's Hunter's Sauce). */
-const DEFAULT_LEAGUES: LeagueId[] = ["NBA", "NHL", "MLB", "NCAAB", "EPL", "UCL", "LALIGA", "SERIEA", "BUNDESLIGA", "LIGUE1", "MLS", "WNBA"];
+const DEFAULT_LEAGUES: LeagueId[] = ["NBA", "NHL", "MLB", "NCAAB", "EPL", "UCL", "LALIGA", "SERIEA", "BUNDESLIGA", "LIGUE1", "MLS", "WNBA", "ATP", "WTA"];
 /** Sportsbook props (The Odds API credits): only these leagues, a few games a day, so one free key lasts the month. */
 const PROP_LEAGUES = new Set<LeagueId>((process.env.PROP_LEAGUES ?? "NBA,MLB,NHL").split(",").map((x) => x.trim() as LeagueId));
 /** Props are pulled once per game, for games kicking off within this many hours (the day before or game day). */
@@ -71,7 +72,17 @@ export async function buildLive(previousHistory: TrackedPick[], previousProps: P
 
   // ---- 1) games and prices from every free source ----
   const espnByGame = new Map<Game, EspnGame>();
-  for (const lg of leagues) {
+  // tennis odds: a fresh pull at LINES_HOURS (or a forced run), cached between runs
+  const tennisLeagues = leagues.filter((l) => LEAGUES[l].sport === "tennis");
+  if (tennisLeagues.length && process.env.THE_ODDS_API_KEY && ((LINES_HOURS.has(localHour) && firstHalf) || forced)) {
+    const n = await refreshTennisOdds(tennisLeagues);
+    note("Tennis odds (The Odds API)", n !== null, n === null ? "no response" : `${n} matches priced`);
+  }
+  for (const lg of tennisLeagues) {
+    const r = await tennisGames(reg, lg as "ATP" | "WTA", now);
+    note(`${lg} matches`, !!r, r ? `${r.games} singles matches (ESPN), ${r.priced} with prices${r.oddsAt ? ` from ${new Date(r.oddsAt).toLocaleTimeString("en-US", { timeZone: DAY_TZ, hour: "numeric", minute: "2-digit" })}` : ""}` : "ESPN tennis didn't answer");
+  }
+  for (const lg of leagues.filter((l) => LEAGUES[l].sport !== "tennis")) {
     const parts: string[] = [];
     let anyOk = false;
     if (ESPN_PATHS[lg]) {
@@ -112,7 +123,7 @@ export async function buildLive(previousHistory: TrackedPick[], previousProps: P
   });
 
   // prediction markets
-  for (const lg of leagues) {
+  for (const lg of leagues.filter((l) => LEAGUES[l].sport !== "tennis")) {
     const k = await kalshi(reg, lg), p = await polymarket(reg, lg);
     if (k) note(`Kalshi ${lg}`, true, `${k} prices`);
     if (p) note(`Polymarket ${lg}`, true, `${p} prices`);
@@ -120,7 +131,7 @@ export async function buildLive(previousHistory: TrackedPick[], previousProps: P
 
   // The Odds API backfill for leagues still missing lines (costs credits, so only when needed and at set hours)
   if (process.env.THE_ODDS_API_KEY && LINES_HOURS.has(localHour) && firstHalf) {
-    for (const lg of leagues) {
+    for (const lg of leagues.filter((l) => LEAGUES[l].sport !== "tennis")) {
       const soon = upcoming.filter((g) => g.matchup.league === lg && new Date(g.matchup.startTime).getTime() - now.getTime() < 48 * 3600_000);
       const missing = soon.filter((g) => ![...g.outcomes.values()].some((o) => o.market === "moneyline"));
       if (missing.length && missing.length >= soon.length / 2) {
@@ -168,6 +179,11 @@ export async function buildLive(previousHistory: TrackedPick[], previousProps: P
   await pool(priced, 6, async (g) => {
     const m = g.matchup;
     const league = LEAGUES[m.league];
+    if (league.sport === "tennis") {
+      const none = { ratings: { powerRating: 0, sampleSize: 1 }, injuries: [], rest: { daysRest: 1, backToBack: false, gamesLast7: 0 } };
+      predicted.push({ g, m, pred: tennisPrediction(m, now), factors: { matchupId: m.id, home: none, away: none } });
+      return;
+    }
     const P = paramsFor(m.league);
     const eg = espnByGame.get(g);
     const ratingFor = async (side: "home" | "away"): Promise<TeamRatings> => {
@@ -293,7 +309,7 @@ export async function buildLive(previousHistory: TrackedPick[], previousProps: P
   if (cards.some((c) => c.matchup.league === "NFL")) note("NFL line history", !!nflHistory, nflHistory ? "real results vs. the line since 2010 (for alt spreads/totals)" : "couldn't load; using the bell curve");
   if (cards.some((c) => c.matchup.league === "NFL")) note("NFL player projections", !!nflPlayers, nflPlayers ? "nflverse weekly player stats" : "couldn't load player stats");
   const kalshiProps: PlayerProp[] = [];
-  for (const lg of [...new Set(cards.map((c) => c.matchup.league))]) {
+  for (const lg of [...new Set(cards.map((c) => c.matchup.league))].filter((l) => LEAGUES[l].sport !== "tennis")) {
     const lc = cards.filter((c) => c.matchup.league === lg);
     const res = await kalshiLadders(lg, lc, lg === "NFL" ? nflPlayers : null, outByTeam, lg === "NFL" ? nflHistory : null).catch(() => null);
     if (!res) continue;

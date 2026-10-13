@@ -75,6 +75,7 @@ jobs:
             curl -fsS "$SITE_URL/data/openers.json" -o public/data/openers.json || true
             curl -fsS "$SITE_URL/data/results.json" -o public/data/results.json || true
             curl -fsS "$SITE_URL/data/prop-results.json" -o public/data/prop-results.json || true
+          curl -fsS "$SITE_URL/data/tennis-odds.json" -o public/data/tennis-odds.json || true
           fi
 
       - name: Build site

@@ -5,6 +5,7 @@
  */
 import type { MatchupCardData, WhyPart } from "@/types/sports";
 import { ordinal, toNflverseAbbr, type TeamUnits } from "./players/nfl";
+import { LEAGUES } from "@/lib/leagues";
 
 const r0 = (x: number) => Math.round(x);
 const WEIGHT: Record<string, number> = { out: 1, doubtful: 0.75, questionable: 0.25, probable: 0.05, day_to_day: 0.25 };
@@ -14,6 +15,12 @@ export function gameWhy(c: MatchupCardData, units?: Map<string, TeamUnits> | nul
   const H = m.home.shortName, A = m.away.shortName;
   const out: WhyPart[] = [];
   const mg = P.projectedMargin;
+  if (LEAGUES[m.league]?.sport === "tennis") {
+    const fav = P.homeWinProb >= 0.5 ? H : A;
+    out.push({ k: "Our projection", text: `${fav} ${Math.round(Math.max(P.homeWinProb, P.awayWinProb) * 100)}% to win`, m: mg, v: 1 });
+    for (const t of P.triggers) out.push({ k: t.label, text: t.detail, m: t.marginImpact });
+    return out;
+  }
   out.push({ k: "Our projection", text: `${H} ${r0(P.projectedScore.home)}, ${A} ${r0(P.projectedScore.away)} (${mg >= 0 ? H : A} by ${Math.abs(mg).toFixed(1)}, total ${P.projectedTotal.toFixed(1)})`, m: mg, t: P.projectedTotal, v: 1 });
 
   const has = (cat: string) => P.triggers.some((t) => t.category === cat);

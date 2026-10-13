@@ -80,6 +80,41 @@ export function propLabel(p: PlayerProp): string {
 
 export const likelyScore = (x: { our: number; book: string }) => x.our - kalshiHandicap(x.book);
 
+/** One of the site's own parlays: a title and its legs (different games). */
+export interface OurParlay { title: string; legs: Candidate[] }
+
+/**
+ * The site's own parlays for a slate, the same way the Parlays page builds its safest ones:
+ *   Safest 2-leg / 3-leg: legs both we (63%+) and the books (58%+) like, best combined chance (average of the two)
+ *   Moneyline parlay: teams we rate 55%+ to win at -400 to +120; three legs if they hit together 35%+, else two
+ */
+export function ourParlays(list: Candidate[]): OurParlay[] {
+  const sure = (x: Candidate) => (likelyScore(x) + x.books) / 2;
+  const best = (pool: Candidate[], n: number, score: (x: Candidate) => number): Candidate[] | null => {
+    const top = [...pool].sort((a, b) => score(b) - score(a)).slice(0, 14);
+    let bestC = null as Candidate[] | null, bestP = 0;
+    const rec = (start: number, cur: Candidate[]) => {
+      if (cur.length === n) { const p = cur.reduce((s, x) => s * score(x), 1); if (p > bestP) { bestP = p; bestC = [...cur]; } return; }
+      for (let i = start; i < top.length; i++) if (!cur.some((c) => c.matchupId === top[i].matchupId)) rec(i + 1, [...cur, top[i]]);
+    };
+    rec(0, []);
+    return bestC;
+  };
+  const strong = list.filter((x) => x.our >= 0.63 && x.books >= 0.58 && x.odds >= LIKELY_ODDS[0] && x.odds <= LIKELY_ODDS[1]);
+  const ml = list.filter((x) => x.grade.market === "moneyline" && x.our >= 0.55 && x.odds >= -400 && x.odds <= 120);
+  const out: OurParlay[] = [];
+  // on thin slates, fall back to every leg we rate 55%+ at a playable price so there's always a 2- and 3-leg
+  const likely = list.filter((x) => x.our >= LIKELY_MIN && x.odds >= LIKELY_ODDS[0] && x.odds <= LIKELY_ODDS[1]);
+  const pool = new Set(strong.map((x) => x.matchupId)).size >= 3 ? strong : likely;
+  const two = best(pool, 2, sure), three = best(pool, 3, sure);
+  if (two) out.push({ title: "Safest 2-leg", legs: two });
+  if (three) out.push({ title: "Safest 3-leg", legs: three });
+  const m3 = best(ml, 3, (x) => x.our), m2 = best(ml, 2, (x) => x.our);
+  const mlp = m3 && m3.reduce((s, x) => s * x.our, 1) >= 0.35 ? m3 : m2;
+  if (mlp) out.push({ title: "Moneyline parlay", legs: mlp });
+  return out;
+}
+
 /** Our top picks for a slate: most likely to hit, at most `perGame` from one game and one per player (his best line). */
 export function topPicks(list: Candidate[], n = 10, perGame = 3): Candidate[] {
   const pool = list.filter((x) => x.our >= LIKELY_MIN && x.odds >= LIKELY_ODDS[0] && x.odds <= LIKELY_ODDS[1]).sort((a, b) => likelyScore(b) - likelyScore(a));
