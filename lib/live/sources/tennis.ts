@@ -40,7 +40,20 @@ export const tennisCtx: Partial<Record<LeagueId, TennisContext>> = {};
 
 const CACHE = path.join("public", "data", "tennis-odds.json");
 type CachedEv = { league: LeagueId; home: string; away: string; commence: string; quotes: { side: "home" | "away"; price: number; book: string }[] };
-const readCache = (): { fetchedAt?: string; events: CachedEv[] } => { try { return JSON.parse(fs.readFileSync(CACHE, "utf8")); } catch { return { events: [] }; } };
+type Cache = { fetchedAt?: string; events: CachedEv[] };
+/**
+ * The cached prices: this run's file if a refresh just wrote it, else the copy published with the site (each run
+ * starts from a fresh checkout). Written back either way so the next deploy publishes it again.
+ */
+async function readCache(): Promise<Cache> {
+  let c: Cache | null = null;
+  try { c = JSON.parse(fs.readFileSync(CACHE, "utf8")); } catch { /* not refreshed this run */ }
+  if (!c && process.env.SITE_URL) c = await getJson<Cache>(`${process.env.SITE_URL.replace(/\/$/, "")}/data/tennis-odds.json`);
+  c = c && Array.isArray(c.events) ? c : { events: [] };
+  try { fs.mkdirSync(path.dirname(CACHE), { recursive: true }); fs.writeFileSync(CACHE, JSON.stringify(c)); } catch { /* read-only checkout */ }
+  return c;
+}
+let cachePromise: Promise<Cache> | null = null;
 
 /** Pull fresh tennis odds for both tours into the cache (only called at LINES_HOURS). */
 export async function refreshTennisOdds(leagues: LeagueId[]): Promise<number | null> {
@@ -80,7 +93,7 @@ export async function tennisGames(reg: Registry, lg: "ATP" | "WTA", now: Date): 
     if (name) ranks.set(pname(name), { rank: Number(x.current) || 0, points: Number(x.points) || 0 });
   }
   const form = new Map<string, { wins: number; event: string; round: string }>();
-  const cache = readCache();
+  const cache = await (cachePromise ??= readCache());
   const fresh = cache.events.filter((e) => e.league === lg && new Date(e.commence).getTime() > now.getTime() - 8 * 3600_000);
   let games = 0, priced = 0;
   const added: { g: ReturnType<Registry["upsert"]>; comp: Json; names: [string, string] }[] = [];
