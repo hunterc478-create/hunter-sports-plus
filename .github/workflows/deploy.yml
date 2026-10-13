@@ -1,0 +1,91 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "*/30 * * * *"   # refresh picks every 30 minutes
+    - cron: "0 15 1 * *"     # monthly keep-alive so GitHub doesn't pause the schedule
+  workflow_dispatch:
+    inputs:
+      load_props:
+        description: "Load player props now (uses about 9 of your 500 free Odds API credits)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  # a newer run replaces a stuck one; on 10/6 a run sat "Waiting" for 17 hours and every update behind it was cancelled
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Keep the schedule alive
+        if: github.event.schedule == '0 15 1 * *'
+        run: |
+          date -u > .keepalive
+          git config user.name "edge-bot"
+          git config user.email "edge-bot@users.noreply.github.com"
+          git add .keepalive && git commit -m "Monthly keep-alive" && git push || true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Pull live games, odds, injuries and weather
+        env:
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
+          THE_ODDS_API_KEY: ${{ secrets.THE_ODDS_API_KEY }}
+          CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
+          FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
+          # load props now: the "Load player props now" box, or a pushed commit with [props] in its message
+          FORCE_PROPS: ${{ inputs.load_props || contains(github.event.head_commit.message, '[props]') }}
+          LEAGUES: ${{ vars.LEAGUES }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}   # phone alerts (ntfy app); unset = off
+          NOTIFY: ${{ vars.NOTIFY }}              # "locks" (default) or "all"
+        run: npx tsx scripts/build-data.ts || echo "Data build failed; keeping the last published board"
+
+      - name: Fall back to the last published board if needed
+        env:
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
+        run: |
+          if [ ! -f data/live.json ]; then
+            mkdir -p data public/data
+            curl -fsS "$SITE_URL/data/live.json" -o data/live.json && cp data/live.json public/data/live.json || echo "No previous board yet; the site will show mock data"
+            curl -fsS "$SITE_URL/data/history.json" -o public/data/history.json || true
+            curl -fsS "$SITE_URL/data/openers.json" -o public/data/openers.json || true
+            curl -fsS "$SITE_URL/data/results.json" -o public/data/results.json || true
+            curl -fsS "$SITE_URL/data/prop-results.json" -o public/data/prop-results.json || true
+          fi
+
+      - name: Build site
+        env:
+          PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          NEXT_TELEMETRY_DISABLED: 1
+        run: npx next build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,9 @@
+# dependencies and build output (rebuilt by GitHub Actions every run)
+node_modules/
+.next/
+out/
+next-env.d.ts
+# data written by scripts/build-data.ts; the live copies are published with the site
+data/
+public/data/
+.env*.local
