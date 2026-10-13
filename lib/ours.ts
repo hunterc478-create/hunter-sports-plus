@@ -4,11 +4,18 @@
  */
 import type { GradeInfo, MatchupCardData, PlayerProp, ValueBet } from "@/types/sports";
 import { isMainLine } from "@/lib/live/openers";
+import { impliedProb } from "@/lib/odds-math";
 
 /** Most likely to hit: our chance at least this, at a price you'd play for consistency. */
 export const LIKELY_MIN = 0.55;
 /** -175 at the short end: week 1 of Our Picks went 11-9 at -200 or shorter and lost 4 units (you need 67% there). */
 export const LIKELY_ODDS: [number, number] = [-175, 120];
+/**
+ * Logged picks (Our Picks, the parlay tracker) also need our chance to beat the price's break-even by this much.
+ * 10/13 on Sports Plus: picks averaged -155 (60% needed) with our chance 61%, so they went 4-4 and lost 1.5 units.
+ */
+export const MIN_EDGE = 0.03;
+export const beatsPrice = (x: { our: number; odds: number }) => x.our - impliedProb(x.odds) >= MIN_EDGE;
 /** Longshots: plus money up to this, where we like it 3+ points more than the books. */
 export const LONGSHOT_ODDS: [number, number] = [121, 400];
 /** When chances are close, the sportsbooks the user plays rank ahead of Kalshi rungs. */
@@ -100,11 +107,12 @@ export function ourParlays(list: Candidate[]): OurParlay[] {
     rec(0, []);
     return bestC;
   };
-  const strong = list.filter((x) => x.our >= 0.63 && x.books >= 0.58 && x.odds >= LIKELY_ODDS[0] && x.odds <= LIKELY_ODDS[1]);
-  const ml = list.filter((x) => x.grade.market === "moneyline" && x.our >= 0.55 && x.odds >= -400 && x.odds <= 120);
+  // every leg has to beat its own price too
+  const strong = list.filter((x) => x.our >= 0.63 && x.books >= 0.58 && x.odds >= LIKELY_ODDS[0] && x.odds <= LIKELY_ODDS[1] && beatsPrice(x));
+  const ml = list.filter((x) => x.grade.market === "moneyline" && x.our >= 0.55 && x.odds >= -400 && x.odds <= 120 && beatsPrice(x));
   const out: OurParlay[] = [];
   // on thin slates, fall back to every leg we rate 55%+ at a playable price so there's always a 2- and 3-leg
-  const likely = list.filter((x) => x.our >= LIKELY_MIN && x.odds >= LIKELY_ODDS[0] && x.odds <= LIKELY_ODDS[1]);
+  const likely = list.filter((x) => x.our >= LIKELY_MIN && x.odds >= LIKELY_ODDS[0] && x.odds <= LIKELY_ODDS[1] && beatsPrice(x));
   const pool = new Set(strong.map((x) => x.matchupId)).size >= 3 ? strong : likely;
   const two = best(pool, 2, sure), three = best(pool, 3, sure);
   if (two) out.push({ title: "Safest 2-leg", legs: two });
@@ -117,7 +125,7 @@ export function ourParlays(list: Candidate[]): OurParlay[] {
 
 /** Our top picks for a slate: most likely to hit, at most `perGame` from one game and one per player (his best line). */
 export function topPicks(list: Candidate[], n = 10, perGame = 3): Candidate[] {
-  const pool = list.filter((x) => x.our >= LIKELY_MIN && x.odds >= LIKELY_ODDS[0] && x.odds <= LIKELY_ODDS[1]).sort((a, b) => likelyScore(b) - likelyScore(a));
+  const pool = list.filter((x) => x.our >= LIKELY_MIN && x.odds >= LIKELY_ODDS[0] && x.odds <= LIKELY_ODDS[1] && beatsPrice(x)).sort((a, b) => likelyScore(b) - likelyScore(a));
   const per = new Map<string, number>();
   const players = new Set<string>();
   const out: Candidate[] = [];
