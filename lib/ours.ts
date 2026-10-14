@@ -82,6 +82,7 @@ export function propLabel(p: PlayerProp): string {
     const stat = p.statLabel.replace(/^[\d.]+\+\s*/, "");
     return p.stat === "anytime_td" ? `${p.playerName} no TD` : `${p.playerName} under ${Math.ceil(p.line)} ${stat}`;
   }
+  if (p.stat === "goals" && p.line === 0.5) return `${p.playerName} to score${p.side === "over" ? "" : ": no"} (anytime)`;
   return `${p.playerName} ${p.side === "over" ? "Over" : "Under"} ${p.line} ${p.statLabel.toLowerCase()}`;
 }
 

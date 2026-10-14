@@ -306,6 +306,7 @@ export type PropStat =
   | "total_bases"
   | "shots_on_goal"
   | "goals"
+  | "shots_on_target"
   | "aces"
   | "significant_strikes";
 

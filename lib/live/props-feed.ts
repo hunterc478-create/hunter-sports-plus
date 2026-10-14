@@ -11,7 +11,11 @@ import { devig } from "@/lib/odds-math";
 import { priceProp } from "@/lib/engine/props";
 import { getJson } from "./http";
 
-const MARKETS: Partial<Record<LeagueId, { key: string; stat: PropStat; dist: "normal" | "poisson"; sdShare?: number }[]>> = {
+type Mk = { key: string; stat: PropStat; dist: "normal" | "poisson"; sdShare?: number; oneSided?: boolean };
+/** Soccer: anytime goalscorer (a Yes-only market) and shots on target, 2 credits a game. */
+const SOCCER: Mk[] = [{ key: "player_goal_scorer_anytime", stat: "goals", dist: "poisson", oneSided: true }, { key: "player_shots_on_target", stat: "shots_on_target", dist: "poisson" }];
+const MARKETS: Partial<Record<LeagueId, Mk[]>> = {
+  EPL: SOCCER, UCL: SOCCER, LALIGA: SOCCER, SERIEA: SOCCER, BUNDESLIGA: SOCCER, LIGUE1: SOCCER, MLS: SOCCER,
   // 5 markets = 5 credits per game; each game is pulled once before kickoff (~80 credits a week).
   // Alt ladders (below) add 4 credits and are pulled for primetime games only.
   NFL: [
@@ -30,7 +34,7 @@ const MARKETS: Partial<Record<LeagueId, { key: string; stat: PropStat; dist: "no
 };
 
 /** Alt prop ladders ("70+ yards"), pulled only when asked (primetime games) to fit the free credits. */
-const ALT_MARKETS: Partial<Record<LeagueId, { key: string; stat: PropStat; dist: "normal" | "poisson"; sdShare?: number }[]>> = {
+const ALT_MARKETS: Partial<Record<LeagueId, Mk[]>> = {
   NFL: [
     { key: "player_pass_yds_alternate", stat: "passing_yards", dist: "normal", sdShare: 0.2 },
     { key: "player_rush_yds_alternate", stat: "rushing_yards", dist: "normal", sdShare: 0.42 },
@@ -70,17 +74,19 @@ export async function getProps(league: LeagueId, game: { matchupId: string; home
     return Math.max(0.94, Math.min(1.06, 1 + 0.25 * (proj / avg - 1)));
   };
 
-  type Row = { stat: PropStat; dist: "normal" | "poisson"; sdShare?: number; player: string; line: number; alt: boolean; over: { price: number; book: string }[]; under: { price: number; book: string }[] };
+  type Row = { stat: PropStat; dist: "normal" | "poisson"; sdShare?: number; player: string; line: number; alt: boolean; oneSided?: boolean; over: { price: number; book: string }[]; under: { price: number; book: string }[] };
   const rows = new Map<string, Row>();
   for (const bk of data.bookmakers ?? []) {
     for (const mk of bk.markets) {
       const cfg = markets.find((m) => m.key === mk.key);
       if (!cfg) continue;
       for (const o of mk.outcomes) {
-        if (!o.description || o.point === undefined) continue;
-        const k = `${mk.key}|${o.description}|${o.point}`;
-        const r = rows.get(k) ?? { stat: cfg.stat, dist: cfg.dist, sdShare: cfg.sdShare, player: o.description, line: o.point, alt: mk.key.endsWith("_alternate"), over: [], under: [] };
-        (o.name === "Over" ? r.over : r.under).push({ price: o.price, book: bk.title });
+        // Yes-only markets (anytime goalscorer): "Yes" is the over at 0.5
+        const point = cfg.oneSided ? 0.5 : o.point;
+        if (!o.description || point === undefined || (cfg.oneSided && o.name !== "Yes")) continue;
+        const k = `${mk.key}|${o.description}|${point}`;
+        const r = rows.get(k) ?? { stat: cfg.stat, dist: cfg.dist, sdShare: cfg.sdShare, player: o.description, line: point, alt: mk.key.endsWith("_alternate"), oneSided: cfg.oneSided, over: [], under: [] };
+        (o.name === "Over" || o.name === "Yes" ? r.over : r.under).push({ price: o.price, book: bk.title });
         rows.set(k, r);
       }
     }
@@ -90,13 +96,17 @@ export async function getProps(league: LeagueId, game: { matchupId: string; home
   for (const r of rows.values()) {
     // alt ladders are usually Over-only ("70+ yards"): no consensus to back out, so the price stands as its own fair
     // chance and our projection (added later) does the judging
-    if (r.alt && r.over.length && !r.under.length) {
+    if ((r.alt || r.oneSided) && r.over.length && !r.under.length) {
       const best = r.over.reduce((a, b) => (b.price > a.price ? b : a));
-      const implied = best.price > 0 ? 100 / (best.price + 100) : -best.price / (-best.price + 100);
+      const imp = (x: number) => (x > 0 ? 100 / (x + 100) : -x / (-x + 100));
+      // Yes-only markets: the books' chance is the median price's, less a typical ~6% margin (there's no No side to
+      // remove it exactly); alt rungs keep the best price as their own fair chance
+      const med = r.over.map((x) => imp(x.price)).sort((a, b) => a - b)[Math.floor(r.over.length / 2)];
+      const implied = r.oneSided ? med / 1.06 : imp(best.price);
       const sd0 = Math.max(1, r.line * (r.sdShare ?? 0.3));
       props.push(priceProp({
-        id: `${game.matchupId}:${r.stat}:${r.player}:${r.line}:over:alt`.replace(/\s+/g, "_"), matchupId: game.matchupId,
-        playerId: r.player.toLowerCase().replace(/\W+/g, "-"), playerName: r.player, team: "", stat: r.stat, line: r.line, isAlt: true, side: "over",
+        id: `${game.matchupId}:${r.stat}:${r.player}:${r.line}:over${r.alt ? ":alt" : ""}`.replace(/\s+/g, "_"), matchupId: game.matchupId,
+        playerId: r.player.toLowerCase().replace(/\W+/g, "-"), playerName: r.player, team: (() => { const t = guessTeam(r.player, game); return t === "home" ? game.home : t === "away" ? game.away : ""; })(), stat: r.stat, line: r.line, isAlt: r.alt, side: "over",
         quote: { bookmaker: { key: best.book.toLowerCase(), name: best.book }, americanOdds: best.price, updatedAt: new Date().toISOString() },
         projection: { mean: r.line, stdDev: r.dist === "normal" ? sd0 : undefined, distribution: r.dist }, confidence,
       }));

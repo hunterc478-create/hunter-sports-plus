@@ -35,17 +35,19 @@ import { updateHistory } from "./history";
 import { tdDerby } from "./td-derby";
 import { gameWhy, propContext } from "./why";
 import { refreshTennisOdds, tennisGames, tennisPrediction } from "./sources/tennis";
+import { goalChance, soccerScorers } from "./sources/soccer-scorers";
 import { impliedProb as implied, normCdf as normCdfLocal, normInv } from "@/lib/odds-math";
 
 /** Hunter Sports Plus: everything but football (that's Hunter's Sauce). */
 const DEFAULT_LEAGUES: LeagueId[] = ["NBA", "NHL", "MLB", "NCAAB", "EPL", "UCL", "LALIGA", "SERIEA", "BUNDESLIGA", "LIGUE1", "MLS", "WNBA", "ATP", "WTA"];
 /** Sportsbook props (The Odds API credits): only these leagues, a few games a day, so one free key lasts the month. */
-const PROP_LEAGUES = new Set<LeagueId>((process.env.PROP_LEAGUES ?? "NBA,MLB,NHL").split(",").map((x) => x.trim() as LeagueId));
+// NBA waits for the regular season and NHL is left out (user's call); MLB until the World Series ends
+const PROP_LEAGUES = new Set<LeagueId>((process.env.PROP_LEAGUES ?? "MLB,UCL,EPL,LALIGA,SERIEA,BUNDESLIGA,LIGUE1,MLS").split(",").map((x) => x.trim() as LeagueId));
 /** Props are pulled once per game, for games kicking off within this many hours (the day before or game day). */
 const PROP_WINDOW_H = Number(process.env.PROP_WINDOW_H ?? 36);
 const DAYS_AHEAD = Number(process.env.DAYS_AHEAD ?? 2);
 const DAYS_BACK = 7;   // look back a week so rest days can come from the schedule
-const PROP_GAMES = Number(process.env.PROP_GAMES ?? 4);
+const PROP_GAMES = Number(process.env.PROP_GAMES ?? 5);
 const LOG_WINDOW_MIN = Number(process.env.LOG_WINDOW_MIN ?? 70);
 const hourSet = (v: string | undefined, d: string) => new Set((v || d).split(",").map((x) => Number(x.trim())).filter((x) => Number.isFinite(x)));
 const PROP_HOURS = hourSet(process.env.PROP_HOURS, "9");     // local hours (DAY_TZ) when props may load: once a day by default
@@ -387,6 +389,20 @@ export async function buildLive(previousHistory: TrackedPick[], previousProps: P
       if (r) { p.ourProb = r.prob; p.why = r.why; withOurs++; }
     }
     if (props.length) note("Our prop projections", withOurs > 0, `${withOurs} of ${props.length} sportsbook props have our chance`);
+  }
+  // soccer: our anytime-goalscorer chance from each scorer's season rate and his team's projected goals
+  if (props.some((p) => p.stat === "goals")) {
+    const scorers = await soccerScorers();
+    let n = 0;
+    for (const p of props) {
+      if (p.stat !== "goals" || p.side !== "over" || p.line !== 0.5) continue;
+      const c = cards.find((x) => x.matchup.id === p.matchupId);
+      const r = c ? goalChance(p, c, scorers) : null;
+      if (!r || !ourChanceSane(r.prob, p)) continue;
+      p.ourProb = r.prob; p.why = r.why; n++;
+      propWhy[`${p.matchupId}|${p.playerName}|${p.stat}`] = r.parts;
+    }
+    note("Goalscorer projections (ESPN scorers)", scorers.size > 0, `${scorers.size} scorers tracked; our chance on ${n} anytime-goal props`);
   }
   // same bar as sportsbook props: "high" confidence means 3+ games of data behind the projection
   for (const p of kalshiProps) if (p.confidence === "high" && ourChanceSane(p.modelProb, p)) { p.ourProb = p.modelProb; p.why = p.matchupNote; }

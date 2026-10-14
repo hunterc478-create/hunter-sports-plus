@@ -24,7 +24,7 @@ import { LEAGUES } from "@/lib/leagues";
 const open = (cards: MatchupCardData[], lg: Lg = "ALL") => cards.filter((c) => c.matchup.status === "scheduled" && inLg(c.matchup.league, lg));
 /** Every game on the board in the sport, started ones included (they stay up with their scores for about a day). */
 const week = (cards: MatchupCardData[], lg: Lg = "ALL") => cards.filter((c) => inLg(c.matchup.league, lg));
-const lgName = (lg: Lg) => (lg === "ALL" ? "All sports" : SPORTS[lg].label);
+const lgName = (lg: Lg) => (lg === "ALL" ? "All sports" : lg in SPORTS ? SPORTS[lg as keyof typeof SPORTS].label : LEAGUES[lg as keyof typeof LEAGUES]?.name ?? lg);
 
 /** Every game line and prop on open games (ranking happens per view). */
 const allRows = (cards: MatchupCardData[], props: PlayerProp[], lg: Lg = "ALL"): BetRow[] => {
@@ -76,7 +76,7 @@ function Chips<T extends string>({ value, onChange, options }: { value: T; onCha
 export function WeekView({ bundle }: { bundle: LiveBundle }) {
   setPropWhy(bundle.propWhy);
   const data = bundle.byDay.all;
-  const { league } = useLeague();
+  const { pick: league } = useLeague();
   const tz = bundle.tz;
   const all = week(data.matchups, league);
   const days = [...new Set(all.map((c) => dayKey(c.matchup.startTime, tz)))].sort();
@@ -223,7 +223,7 @@ export function GameView({ bundle, id }: { bundle: LiveBundle; id: string }) {
 export function BestBetsView({ bundle }: { bundle: LiveBundle }) {
   setPropWhy(bundle.propWhy);
   const data = bundle.byDay.all;
-  const { league } = useLeague();
+  const { pick: league } = useLeague();
   const rows = allRows(data.matchups, data.props, league);
   const [view, setView] = useState<View>("likely");
   const [kind, setKind] = useState<"all" | BetRow["kind"]>("all");
@@ -245,7 +245,7 @@ export function BestBetsView({ bundle }: { bundle: LiveBundle }) {
 export function PropsView({ bundle }: { bundle: LiveBundle }) {
   setPropWhy(bundle.propWhy);
   const data = bundle.byDay.all;
-  const { league } = useLeague();
+  const { pick: league } = useLeague();
   const games = open(data.matchups, league);
   const all = propRows(data.props, games);
   const loaded = games.filter((c) => all.some((r) => r.card.matchup.id === c.matchup.id));
@@ -272,7 +272,7 @@ export function PropsView({ bundle }: { bundle: LiveBundle }) {
 export function ParlaysPage({ bundle }: { bundle: LiveBundle }) {
   setPropWhy(bundle.propWhy);
   const data = bundle.byDay.all;
-  const { league } = useLeague();
+  const { pick: league } = useLeague();
   const [mode, setMode] = useState<"mixed" | "sure" | "ml">("mixed");
   const rows = allRows(data.matchups, data.props, league);
   const mlRows = rows.filter((r) => r.kind === "Moneyline");
@@ -344,7 +344,7 @@ export function OurPicksPage({ bundle }: { bundle: LiveBundle }) {
   const data = bundle.byDay.all;
   const rec = data.oursRecord;
   const picks = data.oursPicks ?? [];
-  const { league } = useLeague();
+  const { pick: league } = useLeague();
   const decided = rec ? rec.wins + rec.losses : 0;
   const settled = picks.filter((p) => p.result === "win" || p.result === "loss");
   const avgOur = settled.reduce((s, p, _, a) => s + p.modelProb / a.length, 0);

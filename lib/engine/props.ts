@@ -6,7 +6,7 @@ export const STAT_LABELS: Record<PropStat, string> = {
   points: "Points", rebounds: "Rebounds", assists: "Assists", points_rebounds_assists: "Pts+Reb+Ast", threes: "3-Pointers",
   passing_yards: "Passing Yds", rushing_yards: "Rushing Yds", receiving_yards: "Receiving Yds", receptions: "Receptions", passing_tds: "Passing TDs",
   anytime_td: "Anytime TD", strikeouts: "Strikeouts", hits: "Hits", total_bases: "Total Bases", shots_on_goal: "Shots on Goal",
-  goals: "Goals", aces: "Aces", significant_strikes: "Sig. Strikes",
+  goals: "Goals", shots_on_target: "Shots on Target", aces: "Aces", significant_strikes: "Sig. Strikes",
 };
 
 /**

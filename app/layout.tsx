@@ -6,6 +6,7 @@ import { UpdateLine } from "@/components/hs/update-line";
 import { DayProvider } from "@/components/day/day-context";
 import { ParlaySlip } from "@/components/dashboard/parlay-slip";
 import { loadBundle } from "@/lib/load-dashboard";
+import { dayKey } from "@/lib/live/day";
 import "./globals.css";
 
 const base = process.env.PAGES_BASE_PATH || "";
@@ -22,10 +23,13 @@ export const viewport: Viewport = { themeColor: "#0E0F12", width: "device-width"
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const bundle = loadBundle();
   const slim = { isMock: bundle.isMock, generatedAt: bundle.generatedAt, status: bundle.status };
+  // today's games per league, for the league chips
+  const counts: Record<string, number> = {};
+  for (const c of bundle.byDay.all.matchups) if (dayKey(c.matchup.startTime, bundle.tz) === bundle.todayKey) counts[c.matchup.league] = (counts[c.matchup.league] ?? 0) + 1;
   return (
     <html lang="en" className={GeistSans.variable}>
       <body className="min-h-screen bg-obsidian font-sans text-ink">
-        <LeagueProvider>
+        <LeagueProvider counts={counts}>
         <div className="pt-[env(safe-area-inset-top)]"><SiteHeader /></div>
         <main>
           <DayProvider days={bundle.days} todayKey={bundle.todayKey}>
