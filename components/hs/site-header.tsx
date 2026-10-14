@@ -15,7 +15,7 @@ const NAV: Item[] = [
   { href: "/parlays", label: "Parlays", icon: ListChecks },
   { href: "/my-bets", label: "My Bets", icon: Wallet },
   { href: "/our-picks", label: "Our Picks", icon: Trophy },
-  { href: "/tracker", label: "Record", icon: Activity },
+  { href: "/tracker", label: "Best price", icon: Activity },
 ];
 const TABS = NAV.filter((n) => ["/", "/best-bets", "/props", "/my-bets"].includes(n.href));
 

@@ -52,6 +52,12 @@ export function assemble(opts: {
   const locksRecord = lockHistory.length ? summarize(lockHistory) : undefined;
   const check = modelCheck(current.filter((p) => p.kind !== "ours"));
   const straightRecord = summarize(current.filter((p) => p.kind === "single" || p.kind === "alt"));
+  // the 10/13 fixes (juice cap 10/12, 3-point edge rule 10/13): judge each list on what it's done since
+  const FIXED = "2026-10-13T05:00:00Z";
+  const oursNew = ours.filter((p) => p.placedAt >= FIXED);
+  const bestNew = current.filter((p) => (p.kind === "single" || p.kind === "alt" || p.kind === "prop") && p.placedAt >= FIXED);
+  const oursRecordNew = oursNew.length ? summarize(oursNew) : undefined;
+  const bestRecordNew = bestNew.length ? summarize(bestNew) : undefined;
   const legacyRecord = legacy.length ? summarize(legacy) : undefined;
   const paused = opts.paused ?? new Set<string>();
   const recentResults = [...history].filter((p) => p.result !== "pending" && p.kind !== "lock" && p.kind !== "ours" && (isMock || p.modelVersion === MODEL_VERSION)).sort((a, b) => (b.settledAt ?? "").localeCompare(a.settledAt ?? "")).slice(0, 25);
@@ -84,7 +90,7 @@ export function assemble(opts: {
       tdDerby: (opts.tdDerby ?? []).filter((t) => filter(t.matchupId) && open.has(t.matchupId)).slice(0, 300),
       generatedAt, isMock, topPicks: ranked.slice(0, 10), matchups: dayCards,
       props: props.filter((p) => filter(p.matchupId)).sort((a, b) => b.edge - a.edge), parlays, trackRecord, legacyRecord, recentResults,
-      locks: pickLocks(dayBets, paused), locksRecord, modelCheck: check, straightRecord, oursRecord, oursCheck, oursPicks, parlayRecord, parlayPicks,
+      locks: pickLocks(dayBets, paused), locksRecord, modelCheck: check, straightRecord, oursRecord, oursCheck, oursPicks, parlayRecord, parlayPicks, oursRecordNew, bestRecordNew,
     };
   };
 

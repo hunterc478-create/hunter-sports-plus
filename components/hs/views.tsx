@@ -372,6 +372,25 @@ export function OurPicksPage({ bundle }: { bundle: LiveBundle }) {
           </div>
         ))}
       </div>
+      <Section title="Since the 10/13 fixes" href="/tracker/" link="Best price log">
+        <p className="-mt-1 mb-4 text-sm text-muted-foreground">Two ways to pick, judged on what each has done since the juice cap and the 3-point edge rule. Our Picks trusts our model; Best price trusts the market and shops for a better number. Give it 2-3 weeks before reading much into it.</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {([["Our Picks", "our model's most likely bets that beat their price", data.oursRecordNew], ["Best price", "one book beats the other books' consensus", data.bestRecordNew]] as const).map(([name, what, r]) => {
+            const d = r ? r.wins + r.losses : 0;
+            return (
+              <div key={name} className="rounded-xl border border-slate-line bg-slate-card p-4">
+                <div className="font-black text-ink">{name}</div>
+                <div className="mb-2 text-xs text-muted-foreground">{what}</div>
+                <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                  <span className="text-2xl font-black tabular-nums">{r ? `${r.wins}-${r.losses}${r.pushes ? `-${r.pushes}` : ""}` : "0-0"}</span>
+                  <span className="text-sm text-muted-foreground">{d ? `${Math.round((r!.wins / d) * 100)}% hit` : "no picks graded yet"}</span>
+                  {r && <span className={cn("text-sm font-bold tabular-nums", r.unitsProfit < 0 ? "text-loss" : "text-neon")}>{fmtUnits(r.unitsProfit)} · {(r.roi * 100).toFixed(1)}% ROI</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
       {data.oursCheck && data.oursCheck.picks > 0 && <div className="mb-10"><ModelCheck check={data.oursCheck} /></div>}
       {!picks.length && <Empty text="No picks logged yet. The first ones log about 2 hours before the next kickoff." />}
       {[...byDay.entries()].map(([day, list]) => (

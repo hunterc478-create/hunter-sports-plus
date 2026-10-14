@@ -584,6 +584,9 @@ export interface DashboardData {
   oursCheck?: ModelCheck;
   /** Our Picks, newest first (last 150). */
   oursPicks?: TrackedPick[];
+  /** Since the 10/13 fixes (juice cap, 3-point edge rule): Our Picks vs the best-price (value) log, side by side. */
+  oursRecordNew?: TrackRecordSummary;
+  bestRecordNew?: TrackRecordSummary;
   /** The site's own parlays (logged before the day's games) and their record. */
   parlayRecord?: TrackRecordSummary;
   parlayPicks?: TrackedPick[];
