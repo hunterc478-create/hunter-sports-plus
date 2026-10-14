@@ -15,6 +15,11 @@ export const LIKELY_ODDS: [number, number] = [-175, 120];
  * 10/13 on Sports Plus: picks averaged -155 (60% needed) with our chance 61%, so they went 4-4 and lost 1.5 units.
  */
 export const MIN_EDGE = 0.03;
+/**
+ * Our Picks take bets we rate 65%+ only. Through 10/14 across both sites, 65-75% picks went 45-22 (67% vs 60% needed,
+ * +7.9u); 55-65% went 10-9 (-1.9u, the juice eats a near coin flip); 75%+ went 10-11 (overconfidence, since reined in).
+ */
+export const OURS_MIN = 0.65;
 export const beatsPrice = (x: { our: number; odds: number }) => x.our - impliedProb(x.odds) >= MIN_EDGE;
 /** Longshots: plus money up to this, where we like it 3+ points more than the books. */
 export const LONGSHOT_ODDS: [number, number] = [121, 400];
@@ -126,7 +131,7 @@ export function ourParlays(list: Candidate[]): OurParlay[] {
 
 /** Our top picks for a slate: most likely to hit, at most `perGame` from one game and one per player (his best line). */
 export function topPicks(list: Candidate[], n = 10, perGame = 3): Candidate[] {
-  const pool = list.filter((x) => x.our >= LIKELY_MIN && x.odds >= LIKELY_ODDS[0] && x.odds <= LIKELY_ODDS[1] && beatsPrice(x)).sort((a, b) => likelyScore(b) - likelyScore(a));
+  const pool = list.filter((x) => x.our >= OURS_MIN && x.odds >= LIKELY_ODDS[0] && x.odds <= LIKELY_ODDS[1] && beatsPrice(x)).sort((a, b) => likelyScore(b) - likelyScore(a));
   const per = new Map<string, number>();
   const players = new Set<string>();
   const out: Candidate[] = [];
