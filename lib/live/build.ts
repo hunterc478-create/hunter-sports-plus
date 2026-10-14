@@ -47,7 +47,12 @@ const PROP_LEAGUES = new Set<LeagueId>((process.env.PROP_LEAGUES ?? "MLB,UCL,EPL
 const PROP_WINDOW_H = Number(process.env.PROP_WINDOW_H ?? 36);
 const DAYS_AHEAD = Number(process.env.DAYS_AHEAD ?? 2);
 const DAYS_BACK = 7;   // look back a week so rest days can come from the schedule
+/**
+ * Credit budget for the free 500 a month: props ~2 credits a game x 5 games a day (~300), tennis 1 credit per
+ * tournament once a day (~90), line backfills only when free sources miss. The run notes show credits left.
+ */
 const PROP_GAMES = Number(process.env.PROP_GAMES ?? 5);
+const TENNIS_HOUR = Number(process.env.TENNIS_HOUR ?? 10);
 const LOG_WINDOW_MIN = Number(process.env.LOG_WINDOW_MIN ?? 70);
 const hourSet = (v: string | undefined, d: string) => new Set((v || d).split(",").map((x) => Number(x.trim())).filter((x) => Number.isFinite(x)));
 const PROP_HOURS = hourSet(process.env.PROP_HOURS, "9");     // local hours (DAY_TZ) when props may load: once a day by default
@@ -76,7 +81,13 @@ export async function buildLive(previousHistory: TrackedPick[], previousProps: P
   const espnByGame = new Map<Game, EspnGame>();
   // tennis odds: a fresh pull at LINES_HOURS (or a forced run), cached between runs
   const tennisLeagues = leagues.filter((l) => LEAGUES[l].sport === "tennis");
-  if (tennisLeagues.length && process.env.THE_ODDS_API_KEY && ((LINES_HOURS.has(localHour) && firstHalf) || forced)) {
+  if (process.env.THE_ODDS_API_KEY) {
+    // free call: how many Odds API credits are left this month (shown in the update notes)
+    const r = await fetch(`https://api.the-odds-api.com/v4/sports?apiKey=${process.env.THE_ODDS_API_KEY}`).catch(() => null);
+    const left = r?.headers.get("x-requests-remaining"), used = r?.headers.get("x-requests-used");
+    if (left) note("Odds API credits", Number(left) > 50, `${left} left this month (${used ?? "?"} used)`);
+  }
+  if (tennisLeagues.length && process.env.THE_ODDS_API_KEY && ((localHour === TENNIS_HOUR && firstHalf) || forced)) {
     const n = await refreshTennisOdds(tennisLeagues);
     note("Tennis odds (The Odds API)", n !== null, n === null ? "no response" : `${n} matches priced`);
   }
@@ -363,7 +374,7 @@ export async function buildLive(previousHistory: TrackedPick[], previousProps: P
         : [[], []];
       const avgPts = paramsFor(c.matchup.league).avgTotal / 2;
       const rp = await getProps(c.matchup.league, {
-        matchupId: c.matchup.id, home: c.matchup.home.name, away: c.matchup.away.name,
+        matchupId: c.matchup.id, home: c.matchup.home.name, away: c.matchup.away.name, start: c.matchup.startTime,
         homeAvgPts: (c.factors.home.ratings.offense ?? 0) + avgPts, awayAvgPts: (c.factors.away.ratings.offense ?? 0) + avgPts, homeRoster, awayRoster,
       }, c.prediction, c.prediction.confidenceTier, PRIMETIME.has(slotOf(c.matchup.startTime).key));
       if (rp) { props.push(...rp); loaded++; fresh.add(c.matchup.id); }

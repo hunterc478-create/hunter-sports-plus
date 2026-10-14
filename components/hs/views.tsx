@@ -32,6 +32,10 @@ const allRows = (cards: MatchupCardData[], props: PlayerProp[], lg: Lg = "ALL"):
   return [...games.flatMap(lineRows), ...propRows(props, games)];
 };
 const isProp = (r: BetRow) => r.kind === "Prop" || r.kind === "Alt prop";
+/** Anytime goalscorers: every one, most likely first (our chance when we have one, else the books'). They rarely
+ * reach 55%, so they'd never show in the "most likely" lists; this is where they live. */
+const scorerRows = (rows: BetRow[]) => rows.filter((r) => r.whyKey?.endsWith("|goals") && r.leg.side === "over")
+  .sort((a, b) => (b.our ?? b.books) - (a.our ?? a.books));
 
 function Title({ kicker, title, sub }: { kicker?: string; title: string; sub?: string }) {
   return (
@@ -110,6 +114,11 @@ export function WeekView({ bundle }: { bundle: LiveBundle }) {
       {rows.length > 0 && (
         <Section title="Most likely to hit" href="/best-bets/" link="Top 25">
           <BetList rows={rank(rows, "likely").slice(0, 5)} />
+        </Section>
+      )}
+      {scorerRows(rows).length > 0 && (
+        <Section title="Top goalscorer picks" href="/props/" link="All goalscorers">
+          <BetList rows={scorerRows(rows).slice(0, 5)} />
         </Section>
       )}
       {rows.length > 0 && (
@@ -196,6 +205,13 @@ export function GameView({ bundle, id }: { bundle: LiveBundle; id: string }) {
         <LoadPropsButton compact />
       </Section>
 
+      {scorerRows(props).length > 0 && (
+        <Section title="Anytime goalscorers">
+          <p className="-mt-1 mb-3 text-xs text-muted-foreground">Everyone the books price to score, most likely first. Our chance comes from his goals per match this season and his team&apos;s projected goals tonight (players outside the season&apos;s top scorers show the books&apos; chance).</p>
+          <BetList rows={scorerRows(props)} showGame={false} results={propResults} />
+        </Section>
+      )}
+
       <Section title="Every book's price">
         <GameRow card={card} defaultOpen />
       </Section>
@@ -260,6 +276,12 @@ export function PropsView({ bundle }: { bundle: LiveBundle }) {
       {loaded.length > 0 && (
         <Chips value={game} onChange={setGame}
           options={[["all", `All games (${all.length})`], ...loaded.map((c) => [c.matchup.id, `${c.matchup.away.shortName} @ ${c.matchup.home.shortName}`] as [string, string])]} />
+      )}
+      {scorerRows(all.filter((r) => game === "all" || r.card.matchup.id === game)).length > 0 && (
+        <Section title="Anytime goalscorers">
+          <p className="-mt-1 mb-3 text-xs text-muted-foreground">Everyone the books price to score today, most likely first. Scorers rarely top 55%, so they live here instead of the lists below.</p>
+          <BetList rows={scorerRows(all.filter((r) => game === "all" || r.card.matchup.id === game)).slice(0, 40)} />
+        </Section>
       )}
       <ViewTabs view={view} onChange={setView} />
       <BetList rows={view === "likely" && !shown.length ? all.filter((r) => game === "all" || r.card.matchup.id === game).slice(0, 50) : shown} empty={`No props loaded yet: they load at 9 AM Central for a few NBA, MLB and NHL games a day (${loaded.length} of ${games.length} games so far).`} />

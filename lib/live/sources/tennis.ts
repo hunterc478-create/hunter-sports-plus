@@ -65,7 +65,7 @@ export async function refreshTennisOdds(leagues: LeagueId[]): Promise<number | n
   for (const lg of leagues.filter((l): l is "ATP" | "WTA" => l === "ATP" || l === "WTA")) {
     for (const sp of sports.filter((x) => x.active && x.key.startsWith(TOUR[lg].odds))) {
       const data = await getJson<{ home_team: string; away_team: string; commence_time: string; bookmakers: { title: string; markets: { key: string; outcomes: { name: string; price: number }[] }[] }[] }[]>(
-        `https://api.the-odds-api.com/v4/sports/${sp.key}/odds`, { apiKey: key, regions: process.env.ODDS_REGIONS ?? "us,us2", markets: "h2h", oddsFormat: "american" });
+        `https://api.the-odds-api.com/v4/sports/${sp.key}/odds`, { apiKey: key, regions: "us", markets: "h2h", oddsFormat: "american" });   // one region = 1 credit per tournament
       for (const ev of data ?? []) {
         const quotes: CachedEv["quotes"] = [];
         for (const bk of ev.bookmakers) for (const m of bk.markets) if (m.key === "h2h") for (const q of m.outcomes)

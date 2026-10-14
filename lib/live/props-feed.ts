@@ -10,6 +10,7 @@ import { ODDS_API_KEYS } from "@/lib/leagues";
 import { devig } from "@/lib/odds-math";
 import { priceProp } from "@/lib/engine/props";
 import { getJson } from "./http";
+import { sameTeam } from "./registry";
 
 type Mk = { key: string; stat: PropStat; dist: "normal" | "poisson"; sdShare?: number; oneSided?: boolean };
 /** Soccer: anytime goalscorer (a Yes-only market) and shots on target, 2 credits a game. */
@@ -44,11 +45,11 @@ const ALT_MARKETS: Partial<Record<LeagueId, Mk[]>> = {
 };
 /** The books the user bets at; up to 10 named books cost the same as one region. */
 const BOOKS = process.env.PROP_BOOKS ?? "fanduel,fliff,draftkings,betmgm,williamhill_us,espnbet,betrivers,fanatics,hardrockbet";
-type Ev = { id: string; home_team: string; away_team: string };
+type Ev = { id: string; home_team: string; away_team: string; commence_time?: string };
 const eventCache = new Map<string, Promise<Ev[] | null>>();
 type Book = { key: string; title: string; markets: { key: string; outcomes: { name: string; description?: string; price: number; point?: number }[] }[] };
 
-export async function getProps(league: LeagueId, game: { matchupId: string; home: string; away: string; homeAvgPts?: number; awayAvgPts?: number; homeRoster?: string[]; awayRoster?: string[] }, pred: Prediction, confidence: ConfidenceTier, alts = false): Promise<PlayerProp[] | null> {
+export async function getProps(league: LeagueId, game: { matchupId: string; home: string; away: string; start?: string; homeAvgPts?: number; awayAvgPts?: number; homeRoster?: string[]; awayRoster?: string[] }, pred: Prediction, confidence: ConfidenceTier, alts = false): Promise<PlayerProp[] | null> {
   const apiKey = process.env.THE_ODDS_API_KEY;
   const sport = ODDS_API_KEYS[league];
   const markets = MARKETS[league] && [...MARKETS[league]!, ...(alts ? ALT_MARKETS[league] ?? [] : [])];
@@ -57,8 +58,13 @@ export async function getProps(league: LeagueId, game: { matchupId: string; home
   if (!eventCache.has(sport)) eventCache.set(sport, getJson<Ev[]>(`https://api.the-odds-api.com/v4/sports/${sport}/events`, { apiKey }));
   const events = await eventCache.get(sport)!;
   if (!events) return null;   // request refused (bad key / out of credits) or failed
-  const same = (a: string, b: string) => a.split(" ").slice(-1)[0].toLowerCase() === b.split(" ").slice(-1)[0].toLowerCase();
-  const ev = events?.find((e) => same(e.home_team, game.home) && same(e.away_team, game.away));
+  // the books' team names differ from ESPN's ("Bayern Munich" / "Bayern München", "Inter" / "Internazionale"): use the
+  // registry's alias-aware match, then fall back to one team matching at the same kickoff
+  const last = (a: string, b: string) => a.split(" ").slice(-1)[0].toLowerCase() === b.split(" ").slice(-1)[0].toLowerCase();
+  const same = (a: string, b: string) => sameTeam(a, b) || last(a, b);
+  const near = (e: Ev) => !game.start || !e.commence_time || Math.abs(new Date(e.commence_time).getTime() - new Date(game.start).getTime()) < 3 * 3600_000;
+  const ev = events?.find((e) => same(e.home_team, game.home) && same(e.away_team, game.away))
+    ?? events?.find((e) => near(e) && !!game.start && (same(e.home_team, game.home) || same(e.away_team, game.away)));
   if (!ev) return [];
   const data = await getJson<{ bookmakers: Book[] }>(`https://api.the-odds-api.com/v4/sports/${sport}/events/${ev.id}/odds`, {
     apiKey, bookmakers: BOOKS, markets: markets.map((m) => m.key).join(","), oddsFormat: "american",
