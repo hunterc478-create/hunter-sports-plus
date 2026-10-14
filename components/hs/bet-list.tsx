@@ -14,6 +14,7 @@ import { kalshiHandicap, LIKELY_MIN, LIKELY_ODDS, LONGSHOT_ODDS, mainBet, ourCha
 import { cn, fmtAmerican } from "@/lib/utils";
 import { TrackButton } from "@/components/dashboard/track-button";
 import { propWhyFor, WhyButton } from "./why";
+import { HitChartButton } from "./hit-chart";
 
 export interface BetRow {
   key: string;
@@ -246,6 +247,7 @@ export function BetList({ rows, showGame = true, empty = "Nothing here yet.", re
                 {r.whyKey
                   ? <WhyButton parts={propWhyFor(...(r.whyKey.split("|") as [string, string, string]))} target={{ kind: "prop", side: r.leg.side, line: r.leg.line }} />
                   : <WhyButton parts={r.card.why} target={{ kind: "line", market: r.leg.market, side: r.leg.side, line: r.leg.line }} />}
+                <HitChartButton card={r.card} bet={{ market: r.leg.market, side: r.leg.side, line: r.leg.line }} whyKey={r.whyKey} />
               </div>
             </div>
             <div className="shrink-0 text-right">

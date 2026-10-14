@@ -27,6 +27,9 @@ export interface LiveBundle {
   propsLoadedAt?: string;
   /** Reasons behind each player projection, by "<matchupId>|<player>|<stat>" (shared by all of that player's lines). */
   propWhy?: Record<string, import("@/types/sports").WhyPart[]>;
+  /** Game logs for the hit-rate charts: teams by "<league>:<ESPN id>", players by "<player>|<stat>". */
+  teamLogs?: Record<string, import("./logs").TeamGame[]>;
+  playerLogs?: Record<string, { w: number; o: string; v: number; t?: string; ls?: 1 }[]>;
 }
 
 export function assemble(opts: {
