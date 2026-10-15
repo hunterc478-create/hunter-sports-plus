@@ -10,7 +10,7 @@ import { useSlip } from "@/lib/my-bets";
 import { parlayDecimal } from "@/lib/odds-math";
 import { cn, fmtAmerican } from "@/lib/utils";
 import { altUnderTip, PropTag, propType, rank, type BetRow } from "./bet-list";
-import { likelyScore } from "@/lib/ours";
+import { likelyScore, isLockLeg, lockCombos } from "@/lib/ours";
 
 const SIZES = [2, 2, 3, 3, 3, 4, 4, 5, 3, 4];
 
@@ -83,13 +83,14 @@ function confident(pool: Leg[], count: number): Leg[][] {
   return out.sort((a, b) => p(b) - p(a));
 }
 
-export function ParlayIdeas({ rows, seed, count = 8, mode = "mixed" }: { rows: BetRow[]; seed: string; count?: number; mode?: "mixed" | "ml" | "sure" }) {
+export function ParlayIdeas({ rows, seed, count = 8, mode = "mixed" }: { rows: BetRow[]; seed: string; count?: number; mode?: "mixed" | "ml" | "sure" | "locks" }) {
   const [shuffles, setShuffles] = useState(0);
   const slip = useSlip();
   const [added, setAdded] = useState<number | null>(null);
-  const pool = useMemo(() => (mode === "ml" ? mlPool(rows) : rank(rows, "likely") as (BetRow & { our: number })[]), [rows, mode]);
+  const pool = useMemo(() => (mode === "ml" ? mlPool(rows) : mode === "locks" ? rows.filter((r): r is BetRow & { our: number } => isLockLeg(r)) : rank(rows, "likely") as (BetRow & { our: number })[]), [rows, mode]);
   const parlays = useMemo(() => {
     if (mode === "sure") return confident(pool, count);
+    if (mode === "locks") return lockCombos(pool, (r) => r.card.matchup.id);
     const rand = rng(hash(seed) + shuffles * 7919);
     const out: (BetRow & { our: number })[][] = [];
     const seen = new Set<string>();
@@ -106,12 +107,13 @@ export function ParlayIdeas({ rows, seed, count = 8, mode = "mixed" }: { rows: B
     return out;
   }, [pool, seed, shuffles, count, mode]);
 
+  if (mode === "locks" && parlays.length === 0) return <p className="rounded-lg border border-dashed border-slate-line bg-slate-card p-6 text-center text-sm text-muted-foreground">No lock parlay right now: it needs two games with a heavy favorite (-150 to -400) that both we and the books rate 70%+ and that still beats its price. Skipping is the right call on days like this.</p>;
   if (pool.length < 2) return <p className="rounded-lg border border-dashed border-slate-line bg-slate-card p-6 text-center text-sm text-muted-foreground">Not enough games with lines yet to build parlays. They fill in as the week&apos;s lines post.</p>;
   return (
     <div>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">{mode === "ml" ? "Moneylines from different games, each team our model rates 55%+ to win." : mode === "sure" ? "Our safest combos, ranked by the chance the whole parlay hits: legs both we and the books like, plus main-line props you can bet anywhere." : "Legs from different games, each one our model rates 55%+ to hit."}</p>
-        {mode !== "sure" && <button type="button" onClick={() => { setShuffles(shuffles + 1); setAdded(null); }} className="inline-flex items-center gap-1.5 rounded-md border border-slate-line px-3 py-1.5 text-xs font-bold hover:bg-slate-raised">
+        <p className="text-xs text-muted-foreground">{mode === "locks" ? "Heavy favorites (-150 to -400) both we and the books rate 70%+, that still beat their price. Nothing is truly a lock: two 75% legs hit together about 56% of the time." : mode === "ml" ? "Moneylines from different games, each team our model rates 55%+ to win." : mode === "sure" ? "Our safest combos, ranked by the chance the whole parlay hits: legs both we and the books like, plus main-line props you can bet anywhere." : "Legs from different games, each one our model rates 55%+ to hit."}</p>
+        {mode !== "sure" && mode !== "locks" && <button type="button" onClick={() => { setShuffles(shuffles + 1); setAdded(null); }} className="inline-flex items-center gap-1.5 rounded-md border border-slate-line px-3 py-1.5 text-xs font-bold hover:bg-slate-raised">
           <Shuffle className="h-3.5 w-3.5" /> Shuffle
         </button>}
       </div>

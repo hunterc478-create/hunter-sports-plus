@@ -12,7 +12,7 @@ import { settleProfit } from "@/lib/engine/track-record";
 import type { LiveBundle } from "./assemble";
 import { betTypeOf, GAME_EXPOSURE, MODEL_VERSION } from "./policy";
 import { getJson } from "./http";
-import { candidates, ourParlays, topPicks } from "@/lib/ours";
+import { candidates, lockParlays, ourParlays, topPicks } from "@/lib/ours";
 import { sameTeam, type Game } from "./registry";
 import { dayKey } from "./day";
 import { toNflverseAbbr, type NflPlayers } from "./players/nfl";
@@ -119,14 +119,15 @@ export async function updateHistory(prev: TrackedPick[], board: LiveBundle, card
   // next 12 hours and logged when their first leg's game enters the log window. One of each per day, 1 unit each.
   const soonCards = cards.filter((c) => c.matchup.status === "scheduled" && minsTo(c.matchup.startTime) > 0 && minsTo(c.matchup.startTime) <= 12 * 60);
   if (soonCards.some((c) => inWindow(c.matchup.startTime))) {
-    for (const pl of ourParlays(candidates(soonCards, board.byDay.all.props))) {
+    const cands = candidates(soonCards, board.byDay.all.props);
+    for (const pl of [...ourParlays(cands).map((x) => ({ ...x, kind: "ourparlay" as const })), ...lockParlays(cands).map((x) => ({ ...x, kind: "lockparlay" as const }))]) {
       const first = pl.legs.map((l) => card.get(l.matchupId)!.matchup.startTime).sort()[0];
       if (!inWindow(first)) continue;
-      const id = `ourparlay:${dayKey(first)}:${pl.title}`;
+      const id = `${pl.kind}:${dayKey(first)}:${pl.title}`;
       if (byId.has(id)) continue;
       const our = pl.legs.reduce((x, l) => x * l.our, 1), books = pl.legs.reduce((x, l) => x * l.books, 1);
-      add({ ...base, id, league: card.get(pl.legs[0].matchupId)!.matchup.league, kind: "ourparlay", label: `${pl.title}: ${pl.legs.map((l) => l.label).join(" + ")}`,
-        americanOdds: decimalToAmerican(parlayDecimal(pl.legs.map((l) => l.odds))), units: 1, modelProb: our, edgeAtPick: our - books, betType: "our parlays",
+      add({ ...base, id, league: card.get(pl.legs[0].matchupId)!.matchup.league, kind: pl.kind, label: `${pl.title}: ${pl.legs.map((l) => l.label).join(" + ")}`,
+        americanOdds: decimalToAmerican(parlayDecimal(pl.legs.map((l) => l.odds))), units: 1, modelProb: our, edgeAtPick: our - books, betType: pl.kind === "lockparlay" ? "lock parlays" : "our parlays",
         grade: { matchupId: pl.legs[0].matchupId, market: "parlay", legs: pl.legs.map((l) => ({ ...l.grade, americanOdds: l.odds, label: `${l.label} (${card.get(l.matchupId)!.matchup.away.shortName} @ ${card.get(l.matchupId)!.matchup.home.shortName})` })) } });
     }
   }

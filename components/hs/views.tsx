@@ -342,25 +342,26 @@ export function ParlaysPage({ bundle }: { bundle: LiveBundle }) {
   setPropWhy(bundle.propWhy); setLogs(bundle);
   const data = bundle.byDay.all;
   const { pick: league } = useLeague();
-  const [mode, setMode] = useState<"mixed" | "sure" | "ml">("mixed");
+  const [mode, setMode] = useState<"mixed" | "sure" | "locks" | "ml">("mixed");
   const rows = allRows(data.matchups, data.props, league);
   const mlRows = rows.filter((r) => r.kind === "Moneyline");
   return (
     <>
       <Title kicker="Parlays" title="Parlay ideas" sub="A fresh set every update from legs our model likes. Shuffle for more, or tap Add to slip to edit one." />
-      <Chips value={mode} onChange={setMode} options={[["mixed", `Mixed · ${lgName(league)}`], ["sure", `Most confident · ${lgName(league)}`], ["ml", `Moneylines only · ${lgName(league)}`]]} />
+      <Chips value={mode} onChange={setMode} options={[["mixed", `Mixed · ${lgName(league)}`], ["sure", `Most confident · ${lgName(league)}`], ["locks", `Locks · ${lgName(league)}`], ["ml", `Moneylines only · ${lgName(league)}`]]} />
       {mode === "mixed" ? <ParlayIdeas rows={rows} seed={bundle.generatedAt + league} count={10} />
         : mode === "sure" ? <ParlayIdeas rows={rows} seed={bundle.generatedAt} count={16} mode="sure" />
+        : mode === "locks" ? <ParlayIdeas rows={rows} seed={bundle.generatedAt} count={2} mode="locks" />
         : <ParlayIdeas rows={mlRows} seed={bundle.generatedAt + "ml"} count={10} mode="ml" />}
-      <OurParlayRecord data={data} />
+      {mode === "locks" ? <OurParlayRecord data={data} locks /> : <OurParlayRecord data={data} />}
     </>
   );
 }
 
 /** The site's own parlays: logged before each day's games, graded leg by leg. */
-function OurParlayRecord({ data }: { data: LiveBundle["byDay"]["all"] }) {
-  const rec = data.parlayRecord;
-  const picks = data.parlayPicks ?? [];
+function OurParlayRecord({ data, locks = false }: { data: LiveBundle["byDay"]["all"]; locks?: boolean }) {
+  const rec = locks ? data.lockParlayRecord : data.parlayRecord;
+  const picks = (locks ? data.lockParlayPicks : data.parlayPicks) ?? [];
   const decided = rec ? rec.wins + rec.losses : 0;
   const tiles = [
     { k: "Record", v: rec ? `${rec.wins}-${rec.losses}${rec.pushes ? `-${rec.pushes}` : ""}` : "0-0" },
@@ -371,8 +372,10 @@ function OurParlayRecord({ data }: { data: LiveBundle["byDay"]["all"] }) {
   const mark = (r?: string) => (r === "win" ? <b className="text-neon">✓</b> : r === "loss" ? <b className="text-loss">✗</b> : r === "void" || r === "push" ? <b className="text-muted-foreground">void</b> : <span className="text-muted-foreground">•</span>);
   return (
     <div className="mt-12">
-      <Section title="Our parlay record">
-        <p className="-mt-1 mb-4 text-sm text-muted-foreground">Every day, shortly before the first games, the site logs its own Safest 2-leg, Safest 3-leg and Moneyline parlay (1 unit each, best prices) and grades them automatically. Separate from your bets and from Our Picks.</p>
+      <Section title={locks ? "Lock parlay record" : "Our parlay record"}>
+        <p className="-mt-1 mb-4 text-sm text-muted-foreground">{locks
+          ? "Each day, shortly before the first leg starts, the site logs its Lock 2-leg (and Lock 3-leg when it qualifies), 1 unit each at the best prices, graded automatically. Its own record, separate from everything else."
+          : "Every day, shortly before the first games, the site logs its own Safest 2-leg, Safest 3-leg and Moneyline parlay (1 unit each, best prices) and grades them automatically. Separate from your bets and from Our Picks."}</p>
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {tiles.map((t) => (
             <div key={t.k} className="rounded-xl border border-slate-line bg-slate-card p-4">

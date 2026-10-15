@@ -129,6 +129,29 @@ export function ourParlays(list: Candidate[]): OurParlay[] {
   return out;
 }
 
+/**
+ * Lock parlays: heavy favorites both we and the books agree on, and only where our chance still beats the price
+ * (a "lock" priced like a lock has no value, and a parlay multiplies the juice).
+ *   legs: our chance 70%+, books 68%+, priced -150 to -400, our chance 2+ points over break-even, one per game
+ *   2-leg: the pair most likely to hit together; 3-leg only if all three hit together 45%+
+ */
+export const LOCK_LEG = { our: 0.7, books: 0.68, odds: [-400, -150] as [number, number], edge: 0.02 };
+export const isLockLeg = (x: { our?: number; books: number; odds: number }) => x.our !== undefined && x.our >= LOCK_LEG.our && x.books >= LOCK_LEG.books
+  && x.odds >= LOCK_LEG.odds[0] && x.odds <= LOCK_LEG.odds[1] && x.our - impliedProb(x.odds) >= LOCK_LEG.edge;
+/** The best 2-leg and (when strong enough) 3-leg lock parlays from a pool of rows with our chance and a game id. */
+export function lockCombos<T extends { our?: number; books: number; odds: number }>(pool: T[], gameOf: (x: T) => string): T[][] {
+  const best = new Map<string, T>();
+  for (const x of pool.filter(isLockLeg)) { const g = gameOf(x), cur = best.get(g); if (!cur || x.our! > cur.our!) best.set(g, x); }
+  const legs = [...best.values()].sort((a, b) => b.our! - a.our!).slice(0, 12);
+  const p = (ls: T[]) => ls.reduce((s, x) => s * x.our!, 1);
+  const out: T[][] = [];
+  if (legs.length >= 2) out.push(legs.slice(0, 2));   // sorted by chance, so the top two are the likeliest pair
+  if (legs.length >= 3 && p(legs.slice(0, 3)) >= 0.45) out.push(legs.slice(0, 3));
+  return out;
+}
+export const lockParlays = (list: Candidate[]): OurParlay[] =>
+  lockCombos(list, (x) => x.matchupId).map((legs) => ({ title: `Lock ${legs.length}-leg`, legs }));
+
 /** Our top picks for a slate: most likely to hit, at most `perGame` from one game and one per player (his best line). */
 export function topPicks(list: Candidate[], n = 10, perGame = 3): Candidate[] {
   const pool = list.filter((x) => x.our >= OURS_MIN && x.odds >= LIKELY_ODDS[0] && x.odds <= LIKELY_ODDS[1] && beatsPrice(x)).sort((a, b) => likelyScore(b) - likelyScore(a));

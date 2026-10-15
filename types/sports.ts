@@ -410,7 +410,7 @@ export interface TrackedPick {
   placedAt: string;
   settledAt?: string;
   league: LeagueId;
-  kind: "single" | "prop" | "alt" | "parlay" | "lock" | "ours" | "ourparlay";
+  kind: "single" | "prop" | "alt" | "parlay" | "lock" | "ours" | "ourparlay" | "lockparlay";
   label: string;
   americanOdds: number;
   units: number;
@@ -590,6 +590,9 @@ export interface DashboardData {
   /** The site's own parlays (logged before the day's games) and their record. */
   parlayRecord?: TrackRecordSummary;
   parlayPicks?: TrackedPick[];
+  /** Lock parlays (heavy favorites both we and the books like, still beating their price) and their record. */
+  lockParlayRecord?: TrackRecordSummary;
+  lockParlayPicks?: TrackedPick[];
   /** trackRecord without parlays and props: game picks and alt lines only. */
   straightRecord?: TrackRecordSummary;
   /** Calibration and closing-line check for the current model's straight bets. */
