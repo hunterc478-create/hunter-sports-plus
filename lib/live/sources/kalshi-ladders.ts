@@ -76,8 +76,11 @@ export async function kalshiLadders(league: LeagueId, cards: MatchupCardData[], 
   const series = await seriesFor(league);
   if (!series.length) return out;
   const isGame = /GAME$/i;
-  const spreadS = series.filter((s) => /SPREAD/i.test(s.ticker) || /spread|wins? by/i.test(s.title ?? ""));
-  const totalS = series.filter((s) => /TOTAL/i.test(s.ticker) || /total points|over\/under/i.test(s.title ?? ""));
+  // full-game lines only: first-half / quarter / period / team-total series were being read as the game's line
+  // (an NFL "Over 22.5" at +101 next to "Over 23.5" at +1775 on 10/14 was a first-half total)
+  const partial = (s: J) => PARTIAL.test(`${String(s.ticker ?? "")} ${String(s.title ?? "")}`);
+  const spreadS = series.filter((s) => !partial(s) && (/SPREAD/i.test(s.ticker) || /spread|wins? by/i.test(s.title ?? "")));
+  const totalS = series.filter((s) => !partial(s) && (/TOTAL/i.test(s.ticker) || /total points|over\/under/i.test(s.title ?? "")));
   const propS = league === "NFL" && players
     ? series.filter((s) => !isGame.test(s.ticker) && !spreadS.includes(s) && !totalS.includes(s) && PROP_STATS.some(([re]) => re.test(`${s.ticker} ${s.title ?? ""}`)))
     : [];
@@ -95,6 +98,7 @@ export async function kalshiLadders(league: LeagueId, cards: MatchupCardData[], 
       const list = out.ladders.get(c.matchup.id) ?? [];
       for (const m of (ev.markets ?? []) as J[]) {
         const text = [m.yes_sub_title, m.title, m.subtitle].filter(Boolean).join(" | ");
+        if (PARTIAL_TEXT.test(`${text} ${ev.title ?? ""} ${ev.sub_title ?? ""}`)) continue;   // a half / quarter / period market
         const line = typeof m.floor_strike === "number" ? m.floor_strike : num(text.match(/(?:by|over|above|more than)\s+(?:over\s+)?(\d+(?:\.\d+)?)/i)?.[1] ?? text);
         if (line === undefined) { unread ||= text; continue; }
         const yes = ask(m, "yes"), no = ask(m, "no");
@@ -191,8 +195,13 @@ export async function kalshiLadders(league: LeagueId, cards: MatchupCardData[], 
 export const ALT_MODEL_WEIGHT = MODEL_WEIGHT;
 const blend = (pModel: number, pMarket: number) => pMarket + ALT_MODEL_WEIGHT * (pModel - pMarket);
 
+const PARTIAL = /1H|2H|HALF|1Q|2Q|3Q|4Q|QTR|QUARTER|PERIOD|1P|2P|3P|TEAMTOTAL|TEAM TOTAL|INNING|F5/i;
+const PARTIAL_TEXT = /\b(1st|2nd|3rd|first|second|third)\s+(half|quarter|period|inning)|\bhalf\b|\bquarter\b|\bperiod\b|team total|first 5/i;
+
 function addRung(list: ValueBet[], c: MatchupCardData, market: "alt_spread" | "alt_total", side: "home" | "away" | "over" | "under", line: number, price: number | undefined, p: number, book: string, marketProb?: number, modelOnlyProb?: number) {
   if (!price || p <= 0.03 || p >= 0.97) return;
+  // a Kalshi price 25+ points from the books' consensus is a stale or empty order book, not a bet anyone can make
+  if (marketProb !== undefined && Math.abs(impliedProb(withFee(price)) - marketProb) > 0.25) return;
   const american = withFee(price);
   const label = market === "alt_total" ? `${side === "over" ? "Over" : "Under"} (alt)` : `${c.matchup[side as "home" | "away"].shortName} alt spread`;
   let ladder = list.find((b) => b.label === label);
