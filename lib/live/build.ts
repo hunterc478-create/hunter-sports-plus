@@ -35,7 +35,7 @@ import { updateHistory } from "./history";
 import { tdDerby } from "./td-derby";
 import { gameWhy, propContext } from "./why";
 import { teamLogs } from "./logs";
-import { refreshTennisOdds, tennisGames, tennisPrediction } from "./sources/tennis";
+import { refreshTennisOdds, tennisGames, tennisOddsAgeH, tennisPrediction } from "./sources/tennis";
 import { goalChance, soccerScorers } from "./sources/soccer-scorers";
 import { impliedProb as implied, normCdf as normCdfLocal, normInv } from "@/lib/odds-math";
 
@@ -88,7 +88,8 @@ export async function buildLive(previousHistory: TrackedPick[], previousProps: P
     const left = r?.headers.get("x-requests-remaining"), used = r?.headers.get("x-requests-used");
     if (left) note("Odds API credits", Number(left) > 50, `${left} left this month (${used ?? "?"} used)`);
   }
-  if (tennisLeagues.length && process.env.THE_ODDS_API_KEY && ((localHour === TENNIS_HOUR && firstHalf) || forced)) {
+  // once a day, on the first run after TENNIS_HOUR (runs drift, so not "only at 10:00-10:29")
+  if (tennisLeagues.length && process.env.THE_ODDS_API_KEY && (forced || (localHour >= TENNIS_HOUR && (await tennisOddsAgeH()) > 18))) {
     const n = await refreshTennisOdds(tennisLeagues);
     note("Tennis odds (The Odds API)", n !== null, n === null ? "no response" : `${n} matches priced`);
   }
@@ -362,7 +363,9 @@ export async function buildLive(previousHistory: TrackedPick[], previousProps: P
   let propsLoadedAt = previousPropsAt;
   let pulledProps = false;
   const fresh = new Set<string>();
-  if (process.env.THE_ODDS_API_KEY && (forced || (PROP_HOURS.has(localHour) && firstHalf))) {
+  // from 9 AM on, every run pulls any game in the window that hasn't been pulled yet (each game once, so no extra
+  // credits): scheduled runs drift (10/14 ran at 8:35 and 9:31), so a "9:00-9:29 only" window missed whole days
+  if (process.env.THE_ODDS_API_KEY && (forced || localHour >= Math.min(...PROP_HOURS))) {
     const windowEnd = now.getTime() + PROP_WINDOW_H * 3600_000;
     // sportsbook props: a few NBA/MLB/NHL games a day (credits)
     const soon = cards.filter((c) => PROP_LEAGUES.has(c.matchup.league) && openIds.has(c.matchup.id) && new Date(c.matchup.startTime).getTime() <= windowEnd && (forced || !pulledIds.has(c.matchup.id)))

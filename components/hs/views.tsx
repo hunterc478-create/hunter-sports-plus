@@ -290,6 +290,52 @@ export function PropsView({ bundle }: { bundle: LiveBundle }) {
   );
 }
 
+// ---------------- O/U ----------------
+
+/** Near even money: both sides between these prices (the "could go either way" lines). */
+const EVEN: [number, number] = [-135, 115];
+/** Our lean has to beat the books' chance by this much to count as a lean, not a coin flip. */
+const LEAN_MIN = 0.02;
+
+/**
+ * Main over/unders that could go either way: every game's main total and every player's main prop line priced near
+ * even money. For each one, the side we like (our chance vs the books'), biggest lean first; the rest are coin flips.
+ */
+export function TotalsPage({ bundle }: { bundle: LiveBundle }) {
+  setPropWhy(bundle.propWhy); setLogs(bundle);
+  const data = bundle.byDay.all;
+  const lgCtx = useLeague() as unknown as { league: Lg; pick?: Lg };
+  const league = (lgCtx.pick ?? lgCtx.league) as Lg;
+  const [tab, setTab] = useState<"games" | "props">("games");
+  const [show, setShow] = useState<"leans" | "all">("leans");
+  const games = open(data.matchups, league);
+  const even = (r: BetRow) => r.odds >= EVEN[0] && r.odds <= EVEN[1];
+  // one row per line: the side with the higher chance by our numbers
+  const pickSide = (rows: BetRow[], key: (r: BetRow) => string) => {
+    const best = new Map<string, BetRow>();
+    for (const r of rows) {
+      if (r.our === undefined || !even(r)) continue;
+      const k = key(r), cur = best.get(k);
+      if (!cur || r.our - r.books > (cur.our ?? 0) - cur.books) best.set(k, r);
+    }
+    return [...best.values()].sort((x, y) => (y.our! - y.books) - (x.our! - x.books));
+  };
+  const gameRows = pickSide(games.flatMap(lineRows).filter((r) => r.kind === "Total"), (r) => r.card.matchup.id);
+  const propRowsAll = pickSide(propRows(data.props, games).filter((r) => r.kind === "Prop" && !r.whyKey?.endsWith("|goals")), (r) => `${r.whyKey}|${r.leg.line}`);
+  const list = tab === "games" ? gameRows : propRowsAll;
+  const leans = list.filter((r) => r.our! - r.books >= LEAN_MIN);
+  const shown = show === "leans" ? leans : list;
+  return (
+    <>
+      <Title kicker={`Over / unders · ${lgName(league)}`} title="Coin flips we lean on" sub="Main over/unders priced near even money (-135 to +115), the ones that could go either way. For each, the side we like and by how much, biggest lean first. Expect 53-58% at best: these are close calls, so read Why? and the hit chart." />
+      <Chips value={tab} onChange={setTab} options={[["games", `Game totals (${gameRows.length})`], ["props", `Player props (${propRowsAll.length})`]]} />
+      <Chips value={show} onChange={setShow} options={[["leans", `We lean (${leans.length})`], ["all", `All, incl. no lean (${list.length})`]]} />
+      <BetList rows={shown} empty={tab === "props" ? "No main-line props near even money with our number yet (props load at 9 AM Central)." : "No game totals near even money with our number yet."} />
+      <p className="mt-3 text-[11px] text-muted-foreground">&quot;We lean&quot; = our chance beats the books&apos; by 2+ points. These are close to 50/50 by design; they won&apos;t show in Our Picks, which needs 65%+.</p>
+    </>
+  );
+}
+
 // ---------------- Parlays ----------------
 
 export function ParlaysPage({ bundle }: { bundle: LiveBundle }) {

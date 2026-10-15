@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, CalendarDays, Layers, ListChecks, Lock, MoreHorizontal, Star, Trophy, Wallet } from "lucide-react";
+import { Activity, CalendarDays, Layers, ListChecks, Lock, MoreHorizontal, Star, Trophy, Wallet, Scale } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LeagueSwitch } from "./league";
 
@@ -11,6 +11,7 @@ const NAV: Item[] = [
   { href: "/", label: "Today", icon: CalendarDays },
   { href: "/best-bets", label: "Best Bets", icon: Star },
   { href: "/props", label: "Props", icon: Layers },
+  { href: "/totals", label: "O/U", icon: Scale },
   { href: "/locks", label: "Locks", icon: Lock },
   { href: "/parlays", label: "Parlays", icon: ListChecks },
   { href: "/my-bets", label: "My Bets", icon: Wallet },
@@ -37,7 +38,7 @@ export function SiteHeader() {
           <nav aria-label="Main" className="ml-auto hidden items-center gap-0.5 lg:flex">
             {NAV.map((n) => (
               <Link key={n.href} href={n.href} aria-current={is(n.href) ? "page" : undefined}
-                className={cn("whitespace-nowrap rounded-md px-2 py-2 text-[13px] font-semibold transition-colors",
+                className={cn("whitespace-nowrap rounded-md px-1.5 py-2 text-[13px] font-semibold transition-colors",
                   is(n.href) ? "bg-brand text-obsidian" : "text-ink/70 hover:bg-slate-raised hover:text-ink")}>
                 {n.label}
               </Link>

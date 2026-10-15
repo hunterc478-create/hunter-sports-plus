@@ -55,6 +55,15 @@ async function readCache(): Promise<Cache> {
 }
 let cachePromise: Promise<Cache> | null = null;
 
+/** Hours since the cached tennis prices were pulled (Infinity if never). Doesn't touch the cache used for the board. */
+export async function tennisOddsAgeH(): Promise<number> {
+  let at: string | undefined;
+  try { at = JSON.parse(fs.readFileSync(CACHE, "utf8")).fetchedAt; } catch {
+    if (process.env.SITE_URL) at = (await getJson<Cache>(`${process.env.SITE_URL.replace(/\/$/, "")}/data/tennis-odds.json`))?.fetchedAt;
+  }
+  return at ? (Date.now() - new Date(at).getTime()) / 3600_000 : Infinity;
+}
+
 /** Pull fresh tennis odds for both tours into the cache (only called at LINES_HOURS). */
 export async function refreshTennisOdds(leagues: LeagueId[]): Promise<number | null> {
   const key = process.env.THE_ODDS_API_KEY;
