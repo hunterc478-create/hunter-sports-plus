@@ -167,7 +167,11 @@ export function dailyFive(list: Candidate[], leagueOf: (matchupId: string) => st
   const pool = list.filter((x) => x.our >= 0.55 && x.odds >= -200 && x.odds <= 150 && edgeOf(x) >= 0.02 && !x.stale)
     .sort((a, b) => (b.our + 0.5 * edgeOf(b) - kalshiHandicap(b.book)) - (a.our + 0.5 * edgeOf(a) - kalshiHandicap(a.book)));
   const perGame = new Map<string, number>(), perLeague = new Map<string, number>(), players = new Set<string>(), ids = new Set<string>();
+  // one bet per game per market, whatever the line ("total" covers alt totals too), and one per player
+  const slot = (x: Pick<Candidate, "matchupId" | "grade" | "player">) => x.player ? `${x.matchupId}|p|${x.player.toLowerCase()}` : `${x.matchupId}|${x.grade.market.replace("alt_", "")}`;
+  const slots = new Set<string>();
   const take = (x: Candidate) => {
+    slots.add(slot(x));
     perGame.set(x.matchupId, (perGame.get(x.matchupId) ?? 0) + 1);
     perLeague.set(leagueOf(x.matchupId), (perLeague.get(leagueOf(x.matchupId)) ?? 0) + 1);
     if (x.player) players.add(`${x.matchupId}:${x.player.toLowerCase()}`);
@@ -177,7 +181,7 @@ export function dailyFive(list: Candidate[], leagueOf: (matchupId: string) => st
   const out: Candidate[] = [];
   for (const x of pool) {
     if (already.length + out.length >= n) break;
-    if (ids.has(x.id) || (perGame.get(x.matchupId) ?? 0) >= 2 || (perLeague.get(leagueOf(x.matchupId)) ?? 0) >= 3) continue;
+    if (ids.has(x.id) || slots.has(slot(x)) || (perGame.get(x.matchupId) ?? 0) >= 2 || (perLeague.get(leagueOf(x.matchupId)) ?? 0) >= 3) continue;
     if (x.player && players.has(`${x.matchupId}:${x.player.toLowerCase()}`)) continue;
     // never both sides of one line
     if (out.some((o) => o.matchupId === x.matchupId && o.grade.market === x.grade.market && o.grade.line === x.grade.line && o.player === x.player)) continue;

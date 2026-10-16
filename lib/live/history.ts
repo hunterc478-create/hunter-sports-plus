@@ -115,6 +115,18 @@ export async function updateHistory(prev: TrackedPick[], board: LiveBundle, card
     }
   }
 
+  // Daily 5 clean-up: one pick per game per market (and per player) per day; a repeat logged after the line moved
+  // (10/16: Over 49.5, then Over 50.5 on the same game) is dropped, keeping the first
+  {
+    const seen = new Set<string>();
+    for (let i = 0; i < history.length; i++) {
+      const p = history[i];
+      if (p.kind !== "daily5" || !p.grade) continue;
+      const k = `${p.id.split(":")[1]}|${p.grade.matchupId}|${p.grade.player ? "p:" + p.grade.player.toLowerCase() : p.grade.market.replace("alt_", "")}`;
+      if (seen.has(k) && p.result === "pending") { history.splice(i, 1); byId.delete(p.id); i--; } else seen.add(k);
+    }
+  }
+
   // 6) Daily 5: from 10 AM Central, the day's five best bets (dailyFive in lib/ours), topped up each run until there
   // are five, from games that start later today and haven't started yet. 1 unit each, own record.
   const D5_HOUR = 10;
@@ -126,7 +138,9 @@ export async function updateHistory(prev: TrackedPick[], board: LiveBundle, card
       const slate = cards.filter((c) => c.matchup.status === "scheduled" && !c.matchup.preseason && minsTo(c.matchup.startTime) > 20 && dayKey(c.matchup.startTime) === day);
       const cands = candidates(slate, board.byDay.all.props);
       const leagueOf = (id: string) => card.get(id)?.matchup.league ?? "";
-      const already = cands.filter((x) => loggedToday.some((p) => p.id === `daily5:${day}:${x.id}`));
+      // what's already logged today, rebuilt from the log itself (a moved line means it's no longer a candidate)
+      const already = loggedToday.filter((p) => p.grade).map((p) => ({ id: p.id.split(":").slice(2).join(":"), matchupId: p.grade!.matchupId, kind: p.grade!.market === "prop" ? "prop" as const : "line" as const,
+        label: p.label, odds: p.americanOdds, book: "", books: p.modelProb - (p.edgeAtPick ?? 0), our: p.modelProb, player: p.grade!.player, grade: p.grade! }));
       for (const x of dailyFive(cands, leagueOf, already)) {
         const c = card.get(x.matchupId)!;
         add({ ...base, id: `daily5:${day}:${x.id}`, league: c.matchup.league, kind: "daily5", label: `${x.label} (${c.matchup.away.shortName} @ ${c.matchup.home.shortName})`,
