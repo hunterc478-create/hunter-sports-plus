@@ -57,7 +57,7 @@ const TENNIS_HOUR = Number(process.env.TENNIS_HOUR ?? 10);
 const LOG_WINDOW_MIN = Number(process.env.LOG_WINDOW_MIN ?? 70);
 const hourSet = (v: string | undefined, d: string) => new Set((v || d).split(",").map((x) => Number(x.trim())).filter((x) => Number.isFinite(x)));
 const PROP_HOURS = hourSet(process.env.PROP_HOURS, "9");     // local hours (DAY_TZ) when props may load: once a day by default
-const LINES_HOURS = hourSet(process.env.LINES_HOURS, "10,16"); // when The Odds API may backfill missing lines
+const LINES_HOURS = hourSet(process.env.LINES_HOURS, "10");   // once a day: each call is 3 markets per league (credits) // when The Odds API may backfill missing lines
 const ymd = (k: string) => k.replace(/-/g, "");
 
 export type PropResults = Record<string, { r: PickResult; start: string }>;
@@ -146,7 +146,8 @@ export async function buildLive(previousHistory: TrackedPick[], previousProps: P
 
   // The Odds API backfill for leagues still missing lines (costs credits, so only when needed and at set hours)
   if (process.env.THE_ODDS_API_KEY && LINES_HOURS.has(localHour) && firstHalf) {
-    for (const lg of leagues.filter((l) => LEAGUES[l].sport !== "tennis")) {
+    // backup only for the big US leagues; ESPN/Action Network cover soccer, and each call costs 3 credits a league
+    for (const lg of leagues.filter((l) => ["NBA", "NHL", "MLB"].includes(l))) {
       const soon = upcoming.filter((g) => g.matchup.league === lg && new Date(g.matchup.startTime).getTime() - now.getTime() < 48 * 3600_000);
       const missing = soon.filter((g) => ![...g.outcomes.values()].some((o) => o.market === "moneyline"));
       if (missing.length && missing.length >= soon.length / 2) {

@@ -16,7 +16,7 @@ export async function oddsApiLines(reg: Registry, league: LeagueId): Promise<num
   const sport = ODDS_API_KEYS[league];
   if (!key || !sport) return null;
   const data = await getJson<Ev[]>(`https://api.the-odds-api.com/v4/sports/${sport}/odds`, {
-    apiKey: key, regions: process.env.ODDS_REGIONS ?? "us,us2", markets: "h2h,spreads,totals", oddsFormat: "american",
+    apiKey: key, regions: process.env.ODDS_REGIONS ?? "us", markets: "h2h,spreads,totals", oddsFormat: "american",
   });
   if (!data) return null;
   let n = 0;
