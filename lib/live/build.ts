@@ -52,7 +52,7 @@ const DAYS_BACK = 7;   // look back a week so rest days can come from the schedu
  * Credit budget for the free 500 a month: props ~2 credits a game x 5 games a day (~300), tennis 1 credit per
  * tournament once a day (~90), line backfills only when free sources miss. The run notes show credits left.
  */
-const PROP_GAMES = Number(process.env.PROP_GAMES ?? 5);
+const PROP_GAMES = Number(process.env.PROP_GAMES ?? 4);
 const TENNIS_HOUR = Number(process.env.TENNIS_HOUR ?? 10);
 const LOG_WINDOW_MIN = Number(process.env.LOG_WINDOW_MIN ?? 70);
 const hourSet = (v: string | undefined, d: string) => new Set((v || d).split(",").map((x) => Number(x.trim())).filter((x) => Number.isFinite(x)));
@@ -365,7 +365,10 @@ export async function buildLive(previousHistory: TrackedPick[], previousProps: P
   const fresh = new Set<string>();
   // from 9 AM on, every run pulls any game in the window that hasn't been pulled yet (each game once, so no extra
   // credits): scheduled runs drift (10/14 ran at 8:35 and 9:31), so a "9:00-9:29 only" window missed whole days
-  if (process.env.THE_ODDS_API_KEY && (forced || localHour >= Math.min(...PROP_HOURS))) {
+  // once a day: the first run from 9 AM on (runs drift, so not "9:00-9:29 only"), and never again that day; pulling on
+  // every run after 9 burned 291 of Sports Plus's 500 credits by 10/16
+  const pulledToday = !!previousPropsAt && dayKey(new Date(previousPropsAt), DAY_TZ) === today;
+  if (process.env.THE_ODDS_API_KEY && (forced || (localHour >= Math.min(...PROP_HOURS) && !pulledToday))) {
     const windowEnd = now.getTime() + PROP_WINDOW_H * 3600_000;
     // sportsbook props: a few NBA/MLB/NHL games a day (credits)
     const soon = cards.filter((c) => PROP_LEAGUES.has(c.matchup.league) && openIds.has(c.matchup.id) && new Date(c.matchup.startTime).getTime() <= windowEnd && (forced || !pulledIds.has(c.matchup.id)))
