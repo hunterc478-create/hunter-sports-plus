@@ -12,9 +12,9 @@ import { settleProfit } from "@/lib/engine/track-record";
 import type { LiveBundle } from "./assemble";
 import { betTypeOf, GAME_EXPOSURE, MODEL_VERSION } from "./policy";
 import { getJson } from "./http";
-import { candidates, lockParlays, ourParlays, topPicks } from "@/lib/ours";
+import { candidates, DAILY_N, dailyFive, lockParlays, ourParlays, topPicks } from "@/lib/ours";
 import { sameTeam, type Game } from "./registry";
-import { dayKey } from "./day";
+import { DAY_TZ, dayKey } from "./day";
 import { toNflverseAbbr, type NflPlayers } from "./players/nfl";
 
 const GIVE_UP_DAYS = 5;   // anything still ungradable after this is voided
@@ -112,6 +112,26 @@ export async function updateHistory(prev: TrackedPick[], board: LiveBundle, card
       if (byId.has(id)) continue;
       add({ ...base, id, league: c.matchup.league, kind: "ours", label: `${x.label} (${c.matchup.away.shortName} @ ${c.matchup.home.shortName})`,
         americanOdds: x.odds, units: 1, modelProb: x.our, edgeAtPick: x.our - x.books, betType: "our picks", grade: x.grade });
+    }
+  }
+
+  // 6) Daily 5: from 10 AM Central, the day's five best bets (dailyFive in lib/ours), topped up each run until there
+  // are five, from games that start later today and haven't started yet. 1 unit each, own record.
+  const D5_HOUR = 10;
+  const hourNow = Number(new Intl.DateTimeFormat("en-US", { timeZone: DAY_TZ, hour: "numeric", hour12: false }).format(now)) % 24;
+  if (hourNow >= D5_HOUR) {
+    const day = dayKey(now);
+    const loggedToday = history.filter((p) => p.kind === "daily5" && p.id.startsWith(`daily5:${day}:`));
+    if (loggedToday.length < DAILY_N) {
+      const slate = cards.filter((c) => c.matchup.status === "scheduled" && !c.matchup.preseason && minsTo(c.matchup.startTime) > 20 && dayKey(c.matchup.startTime) === day);
+      const cands = candidates(slate, board.byDay.all.props);
+      const leagueOf = (id: string) => card.get(id)?.matchup.league ?? "";
+      const already = cands.filter((x) => loggedToday.some((p) => p.id === `daily5:${day}:${x.id}`));
+      for (const x of dailyFive(cands, leagueOf, already)) {
+        const c = card.get(x.matchupId)!;
+        add({ ...base, id: `daily5:${day}:${x.id}`, league: c.matchup.league, kind: "daily5", label: `${x.label} (${c.matchup.away.shortName} @ ${c.matchup.home.shortName})`,
+          americanOdds: x.odds, units: 1, modelProb: x.our, edgeAtPick: x.our - x.books, betType: "daily 5", grade: x.grade });
+      }
     }
   }
 

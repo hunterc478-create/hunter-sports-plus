@@ -131,6 +131,8 @@ export async function getGames(league: LeagueId, startYmd: string, endYmd: strin
       startTime: str(e.date) ?? new Date().toISOString(),
       status,
       week: num(dig(e, "week", "number")),
+      // preseason games: starters' minutes are a guess, so the Daily 5 skips them
+      preseason: num(dig(e, "season", "type")) === 1 || undefined,
       home: { id: str(team(home).id) ?? "home", name: str(team(home).displayName) ?? "Home", shortName: str(team(home).shortDisplayName) ?? str(team(home).name) ?? "Home", abbreviation: str(team(home).abbreviation), record: record(home), logoUrl: str(team(home).logo), color: hex(team(home).color) },
       away: { id: str(team(away).id) ?? "away", name: str(team(away).displayName) ?? "Away", shortName: str(team(away).shortDisplayName) ?? str(team(away).name) ?? "Away", abbreviation: str(team(away).abbreviation), record: record(away), logoUrl: str(team(away).logo), color: hex(team(away).color) },
       venue: venue.fullName ? { name: str(venue.fullName)!, city: str(dig(venue, "address", "city")) ?? "", indoor: venue.indoor === true } : undefined,

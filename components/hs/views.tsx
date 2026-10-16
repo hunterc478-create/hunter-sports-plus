@@ -408,6 +408,45 @@ function OurParlayRecord({ data, locks = false }: { data: LiveBundle["byDay"]["a
   );
 }
 
+/** Daily 5: the five bets we'd pick each day, logged from 10 AM Central, with their own record. */
+function Daily5({ data }: { data: LiveBundle["byDay"]["all"] }) {
+  const rec = data.daily5Record;
+  const picks = data.daily5Picks ?? [];
+  const decided = rec ? rec.wins + rec.losses : 0;
+  const days = new Map<string, typeof picks>();
+  for (const p of picks) { const d = p.id.split(":")[1] ?? ""; days.set(d, [...(days.get(d) ?? []), p]); }
+  const [latest, ...older] = [...days.entries()];
+  const row = (p: (typeof picks)[number]) => (
+    <li key={p.id} className="flex items-start justify-between gap-3 px-4 py-2.5 text-sm">
+      <div className="min-w-0"><div className="font-semibold">{p.label}</div><div className="text-xs text-muted-foreground">our chance {Math.round(p.modelProb * 100)}% · {fmtAmerican(p.americanOdds)}</div></div>
+      <span className={cn("shrink-0 rounded px-2 py-0.5 text-xs font-bold", p.result === "win" ? "bg-neon/15 text-neon" : p.result === "loss" ? "bg-loss/15 text-loss" : "bg-slate-raised text-ink/70")}>
+        {p.result === "win" ? `✓ +${(p.profitUnits ?? 0).toFixed(2)}u` : p.result === "loss" ? "✗ -1u" : p.result === "pending" ? "Pending" : p.result}
+      </span>
+    </li>
+  );
+  return (
+    <Section title="Daily 5">
+      <p className="-mt-1 mb-4 text-sm text-muted-foreground">The five bets we&apos;d actually pick each day: likely to hit and still beating the price, no props propped up by last season, spread across games. Logged from 10 AM Central, 1 unit each, graded automatically.</p>
+      <div className="mb-4 flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-xl border border-brand/40 bg-slate-card p-4">
+        <span className="text-3xl font-black tabular-nums">{rec ? `${rec.wins}-${rec.losses}${rec.pushes ? `-${rec.pushes}` : ""}` : "0-0"}</span>
+        <span className="text-sm text-muted-foreground">{decided ? `${Math.round((rec!.wins / decided) * 100)}% hit` : "no picks graded yet"}</span>
+        {rec && <span className={cn("text-sm font-bold tabular-nums", rec.unitsProfit < 0 ? "text-loss" : "text-neon")}>{fmtUnits(rec.unitsProfit)} · {(rec.roi * 100).toFixed(1)}% ROI</span>}
+      </div>
+      {!latest ? <Empty text="Today's Daily 5 logs from 10 AM Central." /> : (
+        <>
+          <div className="mb-1 text-xs font-bold uppercase tracking-wider text-brand">{latest[0] === dayKey(new Date().toISOString()) ? "Today" : latest[0]}</div>
+          <ol className="mb-4 divide-y divide-slate-line overflow-hidden rounded-xl border border-slate-line bg-slate-card">{latest[1].map(row)}</ol>
+          {older.length > 0 && (
+            <details className="text-sm"><summary className="cursor-pointer text-xs font-semibold text-muted-foreground">Earlier days ({older.length})</summary>
+              {older.map(([d, list]) => (<div key={d} className="mt-3"><div className="mb-1 text-xs font-bold text-muted-foreground">{d}</div><ol className="divide-y divide-slate-line overflow-hidden rounded-xl border border-slate-line bg-slate-card">{list.map(row)}</ol></div>))}
+            </details>
+          )}
+        </>
+      )}
+    </Section>
+  );
+}
+
 // ---------------- Our Picks ----------------
 
 /** Our own record: the top "most likely to hit" bets, logged automatically before each kickoff window. */
@@ -444,6 +483,7 @@ export function OurPicksPage({ bundle }: { bundle: LiveBundle }) {
           </div>
         ))}
       </div>
+      <Daily5 data={data} />
       <Section title="Since the 10/13 fixes" href="/tracker/" link="Best price log">
         <p className="-mt-1 mb-4 text-sm text-muted-foreground">Two ways to pick, judged on what each has done since the juice cap and the 3-point edge rule. Our Picks trusts our model; Best price trusts the market and shops for a better number. Give it 2-3 weeks before reading much into it.</p>
         <div className="grid gap-3 sm:grid-cols-2">

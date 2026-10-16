@@ -43,10 +43,13 @@ export function assemble(opts: {
   const current = isMock ? history : history.filter((p) => p.modelVersion === MODEL_VERSION);
   // locks keep their own record so the main one stays comparable to earlier days
   // locks and Our Picks keep their own records
-  const trackRecord = summarize(current.filter((p) => p.kind !== "lock" && p.kind !== "ours" && p.kind !== "ourparlay" && p.kind !== "lockparlay"));
+  const trackRecord = summarize(current.filter((p) => p.kind !== "lock" && p.kind !== "ours" && p.kind !== "ourparlay" && p.kind !== "lockparlay" && p.kind !== "daily5"));
   const parlayHist = history.filter((p) => p.kind === "ourparlay");
   const parlayRecord = parlayHist.length ? summarize(parlayHist) : undefined;
   const parlayPicks = [...parlayHist].sort((a, b) => b.placedAt.localeCompare(a.placedAt)).slice(0, 60);
+  const d5 = history.filter((p) => p.kind === "daily5");
+  const daily5Record = d5.length ? summarize(d5) : undefined;
+  const daily5Picks = [...d5].sort((a, b) => b.placedAt.localeCompare(a.placedAt)).slice(0, 80);
   const lockHist = history.filter((p) => p.kind === "lockparlay");
   const lockParlayRecord = lockHist.length ? summarize(lockHist) : undefined;
   const lockParlayPicks = [...lockHist].sort((a, b) => b.placedAt.localeCompare(a.placedAt)).slice(0, 60);
@@ -96,7 +99,7 @@ export function assemble(opts: {
       tdDerby: (opts.tdDerby ?? []).filter((t) => filter(t.matchupId) && open.has(t.matchupId)).slice(0, 300),
       generatedAt, isMock, topPicks: ranked.slice(0, 10), matchups: dayCards,
       props: props.filter((p) => filter(p.matchupId)).sort((a, b) => b.edge - a.edge), parlays, trackRecord, legacyRecord, recentResults,
-      locks: pickLocks(dayBets, paused), locksRecord, modelCheck: check, straightRecord, oursRecord, oursCheck, oursPicks, parlayRecord, parlayPicks, lockParlayRecord, lockParlayPicks, oursRecordNew, bestRecordNew,
+      locks: pickLocks(dayBets, paused), locksRecord, modelCheck: check, straightRecord, oursRecord, oursCheck, oursPicks, parlayRecord, parlayPicks, lockParlayRecord, lockParlayPicks, daily5Record, daily5Picks, oursRecordNew, bestRecordNew,
     };
   };
 

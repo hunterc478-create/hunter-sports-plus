@@ -51,6 +51,8 @@ export interface Candidate {
   our: number;
   /** Props: the player, so a list takes one bet per player instead of three rungs of the same one. */
   player?: string;
+  /** Props whose projection leans mostly on last season (this season's average is far from it): skipped by the Daily 5. */
+  stale?: boolean;
   grade: GradeInfo;
 }
 
@@ -72,7 +74,7 @@ export function candidates(cards: MatchupCardData[], props: PlayerProp[]): Candi
       if (p.matchupId !== m.id || p.ourProb === undefined || p.flags?.includes("large_gap")) continue;
       out.push({ id: p.id, matchupId: m.id, kind: "prop", label: propLabel(p), odds: p.bestQuote.americanOdds, book: p.bestQuote.bookmaker.name,
         books: p.source === "kalshi" ? p.impliedProb : p.modelProb, our: ourChance(p.ourProb, p.source === "kalshi" ? p.impliedProb : p.modelProb),
-        player: p.playerName, grade: { matchupId: m.id, market: "prop", side: p.side, line: p.line, ticker: p.ticker, player: p.playerName, stat: p.stat, ...base } });
+        player: p.playerName, stale: p.flags?.includes("leans_last_season"), grade: { matchupId: m.id, market: "prop", side: p.side, line: p.line, ticker: p.ticker, player: p.playerName, stat: p.stat, ...base } });
     }
   }
   // one per bet (Kalshi can list the same bet twice)
@@ -151,6 +153,38 @@ export function lockCombos<T extends { our?: number; books: number; odds: number
 }
 export const lockParlays = (list: Candidate[]): OurParlay[] =>
   lockCombos(list, (x) => x.matchupId).map((legs) => ({ title: `Lock ${legs.length}-leg`, legs }));
+
+/**
+ * Daily 5: the bets we'd actually pick for the day, the way a person would: likely to hit AND still beating the price,
+ * no props propped up by last season, spread across games and sports. Score = our chance + half the edge over the
+ * price (so a 62% bet 6 points over its price beats a 66% bet 1 point over).
+ *   bar: our chance 55%+, our chance 2+ points over the price's break-even, -200 to +150
+ *   spread: one per player, at most 2 per game and 3 per league (counting what's already logged today)
+ */
+export const DAILY_N = 5;
+export function dailyFive(list: Candidate[], leagueOf: (matchupId: string) => string, already: Candidate[] = [], n = DAILY_N): Candidate[] {
+  const edgeOf = (x: Candidate) => x.our - impliedProb(x.odds);
+  const pool = list.filter((x) => x.our >= 0.55 && x.odds >= -200 && x.odds <= 150 && edgeOf(x) >= 0.02 && !x.stale)
+    .sort((a, b) => (b.our + 0.5 * edgeOf(b) - kalshiHandicap(b.book)) - (a.our + 0.5 * edgeOf(a) - kalshiHandicap(a.book)));
+  const perGame = new Map<string, number>(), perLeague = new Map<string, number>(), players = new Set<string>(), ids = new Set<string>();
+  const take = (x: Candidate) => {
+    perGame.set(x.matchupId, (perGame.get(x.matchupId) ?? 0) + 1);
+    perLeague.set(leagueOf(x.matchupId), (perLeague.get(leagueOf(x.matchupId)) ?? 0) + 1);
+    if (x.player) players.add(`${x.matchupId}:${x.player.toLowerCase()}`);
+    ids.add(x.id);
+  };
+  already.forEach(take);
+  const out: Candidate[] = [];
+  for (const x of pool) {
+    if (already.length + out.length >= n) break;
+    if (ids.has(x.id) || (perGame.get(x.matchupId) ?? 0) >= 2 || (perLeague.get(leagueOf(x.matchupId)) ?? 0) >= 3) continue;
+    if (x.player && players.has(`${x.matchupId}:${x.player.toLowerCase()}`)) continue;
+    // never both sides of one line
+    if (out.some((o) => o.matchupId === x.matchupId && o.grade.market === x.grade.market && o.grade.line === x.grade.line && o.player === x.player)) continue;
+    take(x); out.push(x);
+  }
+  return out;
+}
 
 /** Our top picks for a slate: most likely to hit, at most `perGame` from one game and one per player (his best line). */
 export function topPicks(list: Candidate[], n = 10, perGame = 3): Candidate[] {
