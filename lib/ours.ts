@@ -157,18 +157,23 @@ export const lockParlays = (list: Candidate[]): OurParlay[] =>
   lockCombos(list, (x) => x.matchupId).map((legs) => ({ title: `Lock ${legs.length}-leg`, legs }));
 
 /**
- * Daily 5: the bets we'd actually pick for the day, the way a person would: likely to hit AND still beating the price,
- * no props propped up by last season, spread across games and sports. Score = our chance + half the edge over the
- * price (so a 62% bet 6 points over its price beats a 66% bet 1 point over).
- *   bar: our chance 55%+, our chance 1+ point over the price's break-even (with honest chances most of that is a
- *        better-than-consensus price), -200 to +150
+ * Daily 5: the bets we'd actually pick for the day: likely to hit, priced at least as well as the market's own
+ * consensus (better prices first), our model agreeing, no props propped up by last season, spread across games and
+ * sports. Score = our chance + 2 x the price edge over the consensus.
+ *   bar: our chance 55%+, our chance 1+ point over the price's break-even, a price no worse than the consensus,
+ *        -220 to +150 (the user is fine with -200 favorites)
  *   spread: one per player, at most 2 per game and 3 per league (counting what's already logged today)
  */
 export const DAILY_N = 5;
 export function dailyFive(list: Candidate[], leagueOf: (matchupId: string) => string, already: Candidate[] = [], n = DAILY_N): Candidate[] {
   const edgeOf = (x: Candidate) => x.our - impliedProb(x.odds);
-  const pool = list.filter((x) => x.our >= 0.55 && x.odds >= -200 && x.odds <= 150 && edgeOf(x) >= 0.01 && !x.stale)
-    .sort((a, b) => (b.our + 0.5 * edgeOf(b) - kalshiHandicap(b.book)) - (a.our + 0.5 * edgeOf(a) - kalshiHandicap(a.book)));
+  // price edge: how much better this price is than the market's own no-vig number (line shopping, the edge that has
+  // actually held up). 10/17: picks whose only edge was the model (college sides, puck lines at a worse-than-market
+  // price) are what kept losing, so a worse-than-consensus price is out and better prices rank first.
+  const shopOf = (x: Candidate) => x.books - impliedProb(x.odds);
+  const score = (x: Candidate) => x.our + 2 * shopOf(x) - kalshiHandicap(x.book);
+  const pool = list.filter((x) => x.our >= 0.55 && x.odds >= -220 && x.odds <= 150 && edgeOf(x) >= 0.01 && shopOf(x) >= 0 && !x.stale)
+    .sort((a, b) => score(b) - score(a));
   const perGame = new Map<string, number>(), perLeague = new Map<string, number>(), players = new Set<string>(), ids = new Set<string>();
   // one bet per game per market, whatever the line ("total" covers alt totals too), and one per player
   const slot = (x: Pick<Candidate, "matchupId" | "grade" | "player">) => x.player ? `${x.matchupId}|p|${x.player.toLowerCase()}` : `${x.matchupId}|${x.grade.market.replace("alt_", "")}`;
