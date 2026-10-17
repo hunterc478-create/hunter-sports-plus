@@ -35,6 +35,7 @@ import { updateHistory } from "./history";
 import { tdDerby } from "./td-derby";
 import { gameWhy, propContext } from "./why";
 import { teamLogs } from "./logs";
+import { playerLogs } from "./player-logs";
 import { refreshTennisOdds, tennisGames, tennisOddsAgeH, tennisPrediction } from "./sources/tennis";
 import { goalChance, soccerScorers } from "./sources/soccer-scorers";
 import { impliedProb as implied, normCdf as normCdfLocal, normInv } from "@/lib/odds-math";
@@ -447,6 +448,8 @@ export async function buildLive(previousHistory: TrackedPick[], previousProps: P
   bundle.propWhy = Object.fromEntries(Object.entries(propWhy).filter(([k]) => shownKeys.has(k)));
   // hit-rate charts: every team's recent games (ESPN schedules, cached) and each prop player's game log
   bundle.teamLogs = await teamLogs(cards).catch(() => ({}));
+  // soccer and MLB props: each player's game log (ESPN), for the same charts
+  bundle.playerLogs = await playerLogs(cards, bundle.byDay.all.props).catch(() => ({}));
   // final scores from the last week, so the browser can settle any tracked bet or parlay leg itself
   const results: GameResults = {};
   for (const g of reg.games) if (g.matchup.status === "final" && g.matchup.score)
