@@ -131,7 +131,7 @@ export async function updateHistory(prev: TrackedPick[], board: LiveBundle, card
   // whose games haven't started are cleared and re-picked below; started games keep their pick
   for (let i = history.length - 1; i >= 0; i--) {
     const p = history[i];
-    if (p.kind === "daily5" && p.id.startsWith("daily5:2026-10-17:") && p.result === "pending" && p.grade?.start && minsTo(p.grade.start) > 5) {
+    if (p.kind === "daily5" && p.id.startsWith("daily5:2026-10-17:") && p.placedAt < "2026-10-17T15:45:00Z" && p.result === "pending" && p.grade?.start && minsTo(p.grade.start) > 5) {
       history.splice(i, 1); byId.delete(p.id);
     }
   }
