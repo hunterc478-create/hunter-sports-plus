@@ -202,7 +202,7 @@ export function GameView({ bundle, id }: { bundle: LiveBundle; id: string }) {
           : <p className="-mt-2 mb-3 text-xs text-muted-foreground">Alt spreads and totals, alt props (like 25+ points) and Kalshi rungs.</p>}
         <ViewTabs view={view} onChange={setView} />
         <BetList rows={shown} showGame={false} results={propResults} empty={view === "longshots" ? "No longshot we like more than the books for this game." : "Nothing our model rates 55%+ at a playable price yet."} />
-        {!hasProps && <p className="mt-2 text-sm text-muted-foreground">Props load at 7 AM Central for a few NBA, MLB and NHL games a day (the free odds credits only stretch so far).</p>}
+        {!hasProps && <p className="mt-2 text-sm text-muted-foreground">Props load at 9 AM Central for a few NBA, MLB and NHL games a day (the free odds credits only stretch so far).</p>}
         <LoadPropsButton compact />
       </Section>
 
@@ -285,7 +285,7 @@ export function PropsView({ bundle }: { bundle: LiveBundle }) {
         </Section>
       )}
       <ViewTabs view={view} onChange={setView} />
-      <BetList rows={view === "likely" && !shown.length ? all.filter((r) => game === "all" || r.card.matchup.id === game).slice(0, 50) : shown} empty={`No props loaded yet: they load at 7 AM Central for a few NBA, MLB and NHL games a day (${loaded.length} of ${games.length} games so far).`} />
+      <BetList rows={view === "likely" && !shown.length ? all.filter((r) => game === "all" || r.card.matchup.id === game).slice(0, 50) : shown} empty={`No props loaded yet: they load at 9 AM Central for a few NBA, MLB and NHL games a day (${loaded.length} of ${games.length} games so far).`} />
     </>
   );
 }
@@ -330,7 +330,7 @@ export function TotalsPage({ bundle }: { bundle: LiveBundle }) {
       <Title kicker={`Over / unders · ${lgName(league)}`} title="Coin flips we lean on" sub="Main over/unders priced near even money (-135 to +115), the ones that could go either way. For each, the side we like and by how much, biggest lean first. Expect 53-58% at best: these are close calls, so read Why? and the hit chart." />
       <Chips value={tab} onChange={setTab} options={[["games", `Game totals (${gameRows.length})`], ["props", `Player props (${propRowsAll.length})`]]} />
       <Chips value={show} onChange={setShow} options={[["leans", `We lean (${leans.length})`], ["all", `All, incl. no lean (${list.length})`]]} />
-      <BetList rows={shown} empty={tab === "props" ? "No main-line props near even money with our number yet (props load at 7 AM Central)." : "No game totals near even money with our number yet."} />
+      <BetList rows={shown} empty={tab === "props" ? "No main-line props near even money with our number yet (props load at 9 AM Central)." : "No game totals near even money with our number yet."} />
       <p className="mt-3 text-[11px] text-muted-foreground">&quot;We lean&quot; = our chance beats the books&apos; by 2+ points. These are close to 50/50 by design; they won&apos;t show in Our Picks, which needs 65%+.</p>
     </>
   );
@@ -408,7 +408,7 @@ function OurParlayRecord({ data, locks = false }: { data: LiveBundle["byDay"]["a
   );
 }
 
-/** Daily 5: the five bets we'd pick each day, logged from 8 AM Central, with their own record. */
+/** Daily 5: the five bets we'd pick each day, logged from 10 AM Central, with their own record. */
 function Daily5({ data }: { data: LiveBundle["byDay"]["all"] }) {
   const rec = data.daily5Record;
   const picks = data.daily5Picks ?? [];
@@ -426,13 +426,13 @@ function Daily5({ data }: { data: LiveBundle["byDay"]["all"] }) {
   );
   return (
     <Section title="Daily 5">
-      <p className="-mt-1 mb-4 text-sm text-muted-foreground">The five bets we&apos;d actually pick each day: likely to hit and still beating the price, no props propped up by last season, spread across games. Logged from 8 AM Central, 1 unit each, graded automatically.</p>
+      <p className="-mt-1 mb-4 text-sm text-muted-foreground">The five bets we&apos;d actually pick each day: likely to hit and still beating the price, no props propped up by last season, spread across games. Logged from 10 AM Central, 1 unit each, graded automatically.</p>
       <div className="mb-4 flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-xl border border-brand/40 bg-slate-card p-4">
         <span className="text-3xl font-black tabular-nums">{rec ? `${rec.wins}-${rec.losses}${rec.pushes ? `-${rec.pushes}` : ""}` : "0-0"}</span>
         <span className="text-sm text-muted-foreground">{decided ? `${Math.round((rec!.wins / decided) * 100)}% hit` : "no picks graded yet"}</span>
         {rec && <span className={cn("text-sm font-bold tabular-nums", rec.unitsProfit < 0 ? "text-loss" : "text-neon")}>{fmtUnits(rec.unitsProfit)} · {(rec.roi * 100).toFixed(1)}% ROI</span>}
       </div>
-      {!latest ? <Empty text="Today's Daily 5 logs from 8 AM Central." /> : (
+      {!latest ? <Empty text="Today's Daily 5 logs from 10 AM Central." /> : (
         <>
           <div className="mb-1 text-xs font-bold uppercase tracking-wider text-brand">{latest[0] === dayKey(new Date().toISOString()) ? "Today" : latest[0]}</div>
           <ol className="mb-4 divide-y divide-slate-line overflow-hidden rounded-xl border border-slate-line bg-slate-card">{latest[1].map(row)}</ol>

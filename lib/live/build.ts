@@ -56,7 +56,7 @@ const PROP_GAMES = Number(process.env.PROP_GAMES ?? 4);
 const TENNIS_HOUR = Number(process.env.TENNIS_HOUR ?? 10);
 const LOG_WINDOW_MIN = Number(process.env.LOG_WINDOW_MIN ?? 70);
 const hourSet = (v: string | undefined, d: string) => new Set((v || d).split(",").map((x) => Number(x.trim())).filter((x) => Number.isFinite(x)));
-const PROP_HOURS = hourSet(process.env.PROP_HOURS, "7");   // props first (7 AM Central), then the Daily 5 at 8     // local hours (DAY_TZ) when props may load: once a day by default
+const PROP_HOURS = hourSet(process.env.PROP_HOURS, "9");     // local hours (DAY_TZ) when props may load: once a day by default
 const LINES_HOURS = hourSet(process.env.LINES_HOURS, "10");   // once a day: each call is 3 markets per league (credits) // when The Odds API may backfill missing lines
 const ymd = (k: string) => k.replace(/-/g, "");
 
@@ -395,7 +395,7 @@ export async function buildLive(previousHistory: TrackedPick[], previousProps: P
   // games pulled earlier keep their props until kickoff
   const kept = carried.filter((p) => !fresh.has(p.matchupId));
   if (kept.length) { props.push(...kept); note("Player props (carried over)", true, `${kept.length} props for ${new Set(kept.map((p) => p.matchupId)).size} games from earlier pulls`); }
-  if (!pulledProps && !kept.length && process.env.THE_ODDS_API_KEY) notes.push(`Player props load at 7 AM Central for games in the next ${PROP_WINDOW_H} hours.`);
+  if (!pulledProps && !kept.length && process.env.THE_ODDS_API_KEY) notes.push(`Player props load at 9 AM Central for games in the next ${PROP_WINDOW_H} hours.`);
 
   // ---- 5) transparency log ----
   // build the board once, log what it recommends, then rebuild with the updated record

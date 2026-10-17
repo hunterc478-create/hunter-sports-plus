@@ -127,9 +127,9 @@ export async function updateHistory(prev: TrackedPick[], board: LiveBundle, card
     }
   }
 
-  // 6) Daily 5: from 8 AM Central, the day's five best bets (dailyFive in lib/ours), topped up each run until there
+  // 6) Daily 5: from 10 AM Central, the day's five best bets (dailyFive in lib/ours), topped up each run until there
   // are five, from games that start later today and haven't started yet. 1 unit each, own record.
-  const D5_HOUR = 8;   // after the 7 AM prop pull, so prop picks are in the running
+  const D5_HOUR = 10;
   const hourNow = Number(new Intl.DateTimeFormat("en-US", { timeZone: DAY_TZ, hour: "numeric", hour12: false }).format(now)) % 24;
   if (hourNow >= D5_HOUR) {
     const day = dayKey(now);

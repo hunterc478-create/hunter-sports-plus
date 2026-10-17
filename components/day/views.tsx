@@ -145,7 +145,7 @@ function LoadPropsCard({ repo }: { repo: string }) {
     <div className="mb-4 rounded-xl border border-slate-line bg-slate-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="font-semibold">Sportsbook props refresh once a day (7 AM Central)</div>
+          <div className="font-semibold">Sportsbook props refresh once a day (9 AM Central)</div>
           <p className="text-sm text-muted-foreground">Want them now, like after injury news? Load them manually. Each load uses about 9 of your 500 free monthly credits.</p>
         </div>
         <div className="flex items-center gap-2">
