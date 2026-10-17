@@ -251,9 +251,10 @@ export function BetList({ rows, showGame = true, empty = "Nothing here yet.", re
               </div>
             </div>
             <div className="shrink-0 text-right">
-              {r.our !== undefined && <div className="text-xl font-black tabular-nums text-ink">{pct(r.our)}</div>}
+              {/* the books' chance first: it's the more reliable number; ours is a nudge on top */}
+              <div className="text-xl font-black tabular-nums text-ink">{pct(r.books)}</div>
               <div className="text-[11px] tabular-nums text-muted-foreground">
-                {r.our !== undefined ? "our chance · " : ""}books {pct(r.books)}
+                books&apos; chance{r.our !== undefined && <> · ours {pct(r.our)}</>}
                 {r.our !== undefined && Math.abs(diff) >= 0.01 && <b className={diff > 0 ? " text-neon" : " text-loss"}> {diff > 0 ? "+" : ""}{Math.round(diff * 100)}</b>}
               </div>
               <div className="mt-0.5 text-sm font-bold tabular-nums">{fmtAmerican(r.odds)} <span className="text-[11px] font-normal text-muted-foreground">{r.book}</span></div>

@@ -28,10 +28,12 @@ export const kalshiHandicap = (book: string) => (book === "Kalshi" ? 0.03 : 0);
 /** A model 25+ points from the market is missing news; no number beats a misleading one. */
 export const sane = (our: number, books: number) => Math.abs(our - books) <= 0.25;
 /**
- * Our chance, reined in toward the books: keep 40% of the model's disagreement. Week 1 the raw model said 73% on its
+ * Our chance, reined in toward the books: keep 25% of the model's disagreement. Week 1 the raw model said 73% on its
  * picks and they hit 55%, and its "75%+" picks went 8-10, so a big gap is mostly the model missing something.
  */
-export const SHRINK = 0.4;
+// 10/16: cut from 0.4. Our picks have hit at about the books' rate, not ours (football: model 73%, books 59%,
+// hit 57%), so the books' price gets most of the weight and the model only nudges it.
+export const SHRINK = 0.25;
 export const ourChance = (raw: number, books: number) => books + SHRINK * (raw - books);
 
 export function mainBet(c: MatchupCardData, market: "spread" | "total" | "moneyline", side: string): ValueBet | undefined {
@@ -158,13 +160,14 @@ export const lockParlays = (list: Candidate[]): OurParlay[] =>
  * Daily 5: the bets we'd actually pick for the day, the way a person would: likely to hit AND still beating the price,
  * no props propped up by last season, spread across games and sports. Score = our chance + half the edge over the
  * price (so a 62% bet 6 points over its price beats a 66% bet 1 point over).
- *   bar: our chance 55%+, our chance 2+ points over the price's break-even, -200 to +150
+ *   bar: our chance 55%+, our chance 1+ point over the price's break-even (with honest chances most of that is a
+ *        better-than-consensus price), -200 to +150
  *   spread: one per player, at most 2 per game and 3 per league (counting what's already logged today)
  */
 export const DAILY_N = 5;
 export function dailyFive(list: Candidate[], leagueOf: (matchupId: string) => string, already: Candidate[] = [], n = DAILY_N): Candidate[] {
   const edgeOf = (x: Candidate) => x.our - impliedProb(x.odds);
-  const pool = list.filter((x) => x.our >= 0.55 && x.odds >= -200 && x.odds <= 150 && edgeOf(x) >= 0.02 && !x.stale)
+  const pool = list.filter((x) => x.our >= 0.55 && x.odds >= -200 && x.odds <= 150 && edgeOf(x) >= 0.01 && !x.stale)
     .sort((a, b) => (b.our + 0.5 * edgeOf(b) - kalshiHandicap(b.book)) - (a.our + 0.5 * edgeOf(a) - kalshiHandicap(a.book)));
   const perGame = new Map<string, number>(), perLeague = new Map<string, number>(), players = new Set<string>(), ids = new Set<string>();
   // one bet per game per market, whatever the line ("total" covers alt totals too), and one per player
