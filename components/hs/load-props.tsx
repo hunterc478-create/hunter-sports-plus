@@ -15,7 +15,7 @@ export function LoadPropsButton({ compact = false }: { compact?: boolean }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         {!compact && (
           <div>
-            <div className="font-bold">Props load automatically at 9 AM Central</div>
+            <div className="font-bold">Props load automatically at 7 AM Central</div>
             <p className="text-sm text-muted-foreground">for games in the next 36 hours. Need them sooner, or fresher after injury news? Load them now.</p>
           </div>
         )}
