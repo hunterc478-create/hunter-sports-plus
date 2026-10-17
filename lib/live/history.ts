@@ -127,6 +127,15 @@ export async function updateHistory(prev: TrackedPick[], board: LiveBundle, card
     }
   }
 
+  // one-time (10/17, at the user's request): the price-first rules replaced the morning's picks, so today's picks
+  // whose games haven't started are cleared and re-picked below; started games keep their pick
+  for (let i = history.length - 1; i >= 0; i--) {
+    const p = history[i];
+    if (p.kind === "daily5" && p.id.startsWith("daily5:2026-10-17:") && p.result === "pending" && p.grade?.start && minsTo(p.grade.start) > 5) {
+      history.splice(i, 1); byId.delete(p.id);
+    }
+  }
+
   // 6) Daily 5: from 10 AM Central, the day's five best bets (dailyFive in lib/ours), topped up each run until there
   // are five, from games that start later today and haven't started yet. 1 unit each, own record.
   const D5_HOUR = 10;
