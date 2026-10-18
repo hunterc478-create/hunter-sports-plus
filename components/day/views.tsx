@@ -200,7 +200,7 @@ export function TrackerView({ bundle }: { bundle: LiveBundle }) {
   const recent = straight ? data.recentResults.filter((p) => p.kind === "single" || p.kind === "alt") : data.recentResults;
   return (
     <>
-      <PageHeader title="Best price" subtitle="Bets where one book's price beats the other books' no-vig consensus (about 2-3%+ expected value), logged before each game and graded automatically. This list follows the market, not our model: it's line shopping." />
+      <PageHeader title="Best price record" subtitle="Bets where one book's price beats the other books' no-vig consensus (about 2-3%+ expected value), logged before each game and graded automatically. This list follows the market, not our model: it's line shopping." />
       <StatStrip data={data} />
       {data.modelCheck && <div className="mt-6 max-w-3xl"><ModelCheck check={data.modelCheck} /></div>}
       <div className="mt-6 flex max-w-3xl flex-wrap items-center justify-between gap-3">

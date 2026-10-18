@@ -7,7 +7,7 @@
  *   longshots +121 to +400 where our chance is 3+ points over the books'
  */
 import { useEffect, useState } from "react";
-import type { MatchupCardData, PlayerProp, ValueBet } from "@/types/sports";
+import type { AltPick, MatchupCardData, PlayerProp, ValueBet } from "@/types/sports";
 import { gradeLeg, legFromBet, useMyBets, useSlip, type Leg, type PropResultMap, type Result } from "@/lib/my-bets";
 import { kickoff } from "@/lib/nfl";
 import { kalshiHandicap, LIKELY_MIN, LIKELY_ODDS, LONGSHOT_ODDS, mainBet, ourChance, propLabel, sane } from "@/lib/ours";
@@ -34,6 +34,35 @@ export interface BetRow {
   whyKey?: string;
   /** An alt spread/total rung (not the main line). */
   alt?: boolean;
+  /** Best price list: how many points this price beats the market's own no-vig number by. */
+  priceEdge?: number;
+}
+
+/**
+ * Best price picks as rows: the bets the value log takes (one book's price beats the other books' no-vig consensus),
+ * game lines from the board's top picks plus alt lines / alt props, biggest price edge first.
+ */
+export function bestPriceRows(top: ValueBet[], alts: AltPick[], cards: MatchupCardData[]): BetRow[] {
+  const byId = new Map(cards.map((c) => [c.matchup.id, c]));
+  const kindOf = (m: string): BetRow["kind"] => (m.includes("spread") ? "Spread" : m.includes("total") ? "Total" : m === "moneyline" ? "Moneyline" : "Alt prop");
+  const rows: BetRow[] = [];
+  for (const b of top) {
+    const c = byId.get(b.matchupId);
+    if (!c || c.matchup.status !== "scheduled") continue;
+    const books = b.marketProb ?? b.modelProb;
+    rows.push({ key: b.id, card: c, kind: kindOf(b.market), label: b.label, odds: b.bestQuote.americanOdds, book: b.bestQuote.bookmaker.name, books,
+      bet: b, leg: legFromBet(b, c), priceEdge: b.edge, alt: b.market.startsWith("alt_") });
+  }
+  for (const a of alts) {
+    const c = byId.get(a.matchupId);
+    if (!c || c.matchup.status !== "scheduled") continue;
+    const g = a.grade;
+    const leg: Leg = { id: a.id, matchupId: a.matchupId, market: g?.market ?? a.kind, side: g?.side ?? "", line: g?.line, label: a.label, game: gameName(c), league: c.matchup.league,
+      start: c.matchup.startTime, americanOdds: a.americanOdds, modelProb: a.modelProb };
+    rows.push({ key: `alt:${a.id}`, card: c, kind: kindOf(a.kind), label: a.label, odds: a.americanOdds, book: a.book, books: a.modelProb, leg, priceEdge: a.edge,
+      alt: a.kind !== "alt_prop", whyKey: a.kind === "alt_prop" && g?.player && g?.stat ? `${a.matchupId}|${g.player}|${g.stat}` : undefined });
+  }
+  return rows.sort((x, y) => (y.priceEdge ?? 0) - (x.priceEdge ?? 0));
 }
 
 /** PrizePicks: a 2-pick Power Play pays 3x, so each pick needs about 58% (the cube root of 1/5 for 3-pick 5x is about 58.5%). */
@@ -255,6 +284,7 @@ export function BetList({ rows, showGame = true, empty = "Nothing here yet.", re
               <div className="text-xl font-black tabular-nums text-ink">{pct(r.books)}</div>
               <div className="text-[11px] tabular-nums text-muted-foreground">
                 books&apos; chance{r.our !== undefined && <> · ours {pct(r.our)}</>}
+                {r.priceEdge !== undefined && <span className="block font-bold text-neon">price +{(r.priceEdge * 100).toFixed(1)} vs market</span>}
                 {r.our !== undefined && Math.abs(diff) >= 0.01 && <b className={diff > 0 ? " text-neon" : " text-loss"}> {diff > 0 ? "+" : ""}{Math.round(diff * 100)}</b>}
               </div>
               <div className="mt-0.5 text-sm font-bold tabular-nums">{fmtAmerican(r.odds)} <span className="text-[11px] font-normal text-muted-foreground">{r.book}</span></div>

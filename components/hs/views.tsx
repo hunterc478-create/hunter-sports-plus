@@ -10,7 +10,7 @@ import { LocksTable } from "@/components/dashboard/locks-table";
 import { GameRow } from "@/components/board/game-row";
 import { GameTile, TEASER_BREAKEVEN, TEASER_LEG_MIN, TeamLogo } from "./game-tile";
 import { LoadPropsButton } from "./load-props";
-import { altLineRows, BetList, lineRows, propRows, rank, usePropResults, ViewTabs, type BetRow, type View, PropKey } from "./bet-list";
+import { altLineRows, bestPriceRows, BetList, lineRows, propRows, rank, usePropResults, ViewTabs, type BetRow, type View, PropKey } from "./bet-list";
 import { ModelCheck } from "@/components/dashboard/model-check";
 import { fmtAmerican, fmtUnits } from "@/lib/utils";
 import { ParlayIdeas } from "./parlay-ideas";
@@ -112,6 +112,15 @@ export function WeekView({ bundle }: { bundle: LiveBundle }) {
           </Link>
         ))}
       </div>
+      {(() => {
+        const ids = new Set(dayGames.map((c) => c.matchup.id));
+        const bp = bestPriceRows(data.topPicks ?? [], data.altPicks ?? [], data.matchups).filter((r) => ids.has(r.card.matchup.id)).slice(0, 3);
+        return bp.length > 0 && (
+          <Section title="Best price today" href="/tracker/" link="All best-price picks">
+            <BetList rows={bp} />
+          </Section>
+        );
+      })()}
       {rows.length > 0 && (
         <Section title="Most likely to hit" href="/best-bets/" link="Top 25">
           <BetList rows={rank(rows, "likely").slice(0, 5)} />
@@ -332,6 +341,26 @@ export function TotalsPage({ bundle }: { bundle: LiveBundle }) {
       <Chips value={show} onChange={setShow} options={[["leans", `We lean (${leans.length})`], ["all", `All, incl. no lean (${list.length})`]]} />
       <BetList rows={shown} empty={tab === "props" ? "No main-line props near even money with our number yet (props load at 9 AM Central)." : "No game totals near even money with our number yet."} />
       <p className="mt-3 text-[11px] text-muted-foreground">&quot;We lean&quot; = our chance beats the books&apos; by 2+ points. These are close to 50/50 by design; they won&apos;t show in Our Picks, which needs 65%+.</p>
+    </>
+  );
+}
+
+// ---------------- Best price ----------------
+
+/** Today's Best price picks: one book's price beats the other books' no-vig consensus. The same bets the Best price
+ * log takes and grades (the list that has held up best). */
+export function BestPriceToday({ bundle }: { bundle: LiveBundle }) {
+  setPropWhy(bundle.propWhy); setLogs(bundle);
+  const data = bundle.byDay.all;
+  const lgCtx = useLeague() as unknown as { league: Lg; pick?: Lg };
+  const league = (lgCtx.pick ?? lgCtx.league) as Lg;
+  const games = open(data.matchups, league);
+  const ids = new Set(games.map((c) => c.matchup.id));
+  const rows = bestPriceRows(data.topPicks ?? [], data.altPicks ?? [], data.matchups).filter((r) => ids.has(r.card.matchup.id));
+  return (
+    <>
+      <Title kicker={`Best price · ${lgName(league)}`} title="Today's best-price picks" sub="Bets where one book is paying more than the other books' own fair price, biggest edge first. This list follows the market, not our model (line shopping), and it's the one that has held up best. Its record is below." />
+      <BetList rows={rows} empty="No price beats the market right now. New ones show up as lines move; check back closer to game time." />
     </>
   );
 }
