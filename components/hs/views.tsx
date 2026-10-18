@@ -257,6 +257,7 @@ export function BestBetsView({ bundle }: { bundle: LiveBundle }) {
   return (
     <>
       <Title kicker={`Best bets · ${lgName(league)}`} title="Top 25 right now" sub="Ranked by our chance: team strength, injuries, rest, travel, starters and weather." />
+      <RecordBadge bundle={bundle} k="likely" />
       <ViewTabs view={view} onChange={setView} />
       <Chips value={kind} onChange={setKind} options={[["all", "All"], ["Spread", "Spreads"], ["Total", "Totals"], ["Moneyline", "Moneylines"], ["Prop", "Props"], ["Alt prop", "Alt props"]]} />
       <BetList rows={shown} empty="Nothing matches yet; more fills in as props load." />
@@ -337,6 +338,7 @@ export function TotalsPage({ bundle }: { bundle: LiveBundle }) {
   return (
     <>
       <Title kicker={`Over / unders · ${lgName(league)}`} title="Coin flips we lean on" sub="Main over/unders priced near even money (-135 to +115), the ones that could go either way. For each, the side we like and by how much, biggest lean first. Expect 53-58% at best: these are close calls, so read Why? and the hit chart." />
+      <RecordBadge bundle={bundle} k="ou" />
       <Chips value={tab} onChange={setTab} options={[["games", `Game totals (${gameRows.length})`], ["props", `Player props (${propRowsAll.length})`]]} />
       <Chips value={show} onChange={setShow} options={[["leans", `We lean (${leans.length})`], ["all", `All, incl. no lean (${list.length})`]]} />
       <BetList rows={shown} empty={tab === "props" ? "No main-line props near even money with our number yet (props load at 9 AM Central)." : "No game totals near even money with our number yet."} />
@@ -377,6 +379,7 @@ export function ParlaysPage({ bundle }: { bundle: LiveBundle }) {
   return (
     <>
       <Title kicker="Parlays" title="Parlay ideas" sub="A fresh set every update from legs our model likes. Shuffle for more, or tap Add to slip to edit one." />
+      <RecordBadge bundle={bundle} k="ourparlay" />
       <Chips value={mode} onChange={setMode} options={[["mixed", `Mixed · ${lgName(league)}`], ["sure", `Most confident · ${lgName(league)}`], ["locks", `Locks · ${lgName(league)}`], ["ml", `Moneylines only · ${lgName(league)}`]]} />
       {mode === "mixed" ? <ParlayIdeas rows={rows} seed={bundle.generatedAt + league} count={10} />
         : mode === "sure" ? <ParlayIdeas rows={rows} seed={bundle.generatedAt} count={16} mode="sure" />
@@ -473,6 +476,73 @@ function Daily5({ data }: { data: LiveBundle["byDay"]["all"] }) {
         </>
       )}
     </Section>
+  );
+}
+
+// ---------------- Records ----------------
+
+type RecRow = NonNullable<LiveBundle["byDay"]["all"]["records"]>[number];
+const recText = (r?: { wins: number; losses: number; pushes: number; unitsProfit: number }) =>
+  r ? `${r.wins}-${r.losses}${r.pushes ? `-${r.pushes}` : ""} · ${fmtUnits(r.unitsProfit)}` : "0-0";
+
+/** "This list: 33-26, +2.2u" at the top of a tab, linking to the scoreboard. */
+export function RecordBadge({ bundle, k }: { bundle: LiveBundle; k: string }) {
+  const r = bundle.byDay.all.records?.find((x) => x.key === k);
+  if (!r) return null;
+  const tone = r.all.unitsProfit > 0 ? "text-neon" : r.all.unitsProfit < 0 ? "text-loss" : "text-ink";
+  return (
+    <Link href="/records/" className="mb-4 inline-flex items-center gap-2 rounded-full border border-slate-line bg-slate-card px-3 py-1 text-xs hover:bg-slate-raised">
+      <span className="text-muted-foreground">This list&apos;s record:</span><b className={tone}>{r.all.picks ? recText(r.all) : "tracking starts today"}</b><span className="text-brand">all records →</span>
+    </Link>
+  );
+}
+
+/** Every tracked list on one scoreboard, best units first; tap a row for its latest picks. */
+export function RecordsPage({ bundle }: { bundle: LiveBundle }) {
+  const rows = [...(bundle.byDay.all.records ?? [])].sort((a, b) => b.all.unitsProfit - a.all.unitsProfit);
+  const [open, setOpen] = useState<string | null>(null);
+  const hit = (r: RecRow["all"]) => (r.wins + r.losses ? `${Math.round((r.wins / (r.wins + r.losses)) * 100)}%` : "—");
+  return (
+    <>
+      <Title kicker="Records" title="Every list, one scoreboard" sub="Each tab's tracked picks, graded automatically, best units first. After a few weeks this shows which tabs actually win, so the losers can go." />
+      <div className="overflow-x-auto rounded-xl border border-slate-line bg-slate-card">
+        <table className="w-full min-w-[560px] text-sm">
+          <thead><tr className="border-b border-slate-line text-left text-xs text-muted-foreground">
+            <th className="px-3 py-2 font-semibold">List</th><th className="px-3 py-2 text-right font-semibold">W-L</th><th className="px-3 py-2 text-right font-semibold">Hit</th>
+            <th className="px-3 py-2 text-right font-semibold">Units</th><th className="px-3 py-2 text-right font-semibold">ROI</th><th className="px-3 py-2 text-right font-semibold">Last 7 days</th>
+          </tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.key} onClick={() => setOpen(open === r.key ? null : r.key)} className="cursor-pointer border-b border-slate-line last:border-0 hover:bg-slate-raised">
+                <td className="px-3 py-2.5 font-semibold">{r.label} <span className="text-xs text-brand">{open === r.key ? "▲" : "▼"}</span></td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{r.all.wins}-{r.all.losses}{r.all.pushes ? `-${r.all.pushes}` : ""}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{hit(r.all)}</td>
+                <td className={cn("px-3 py-2.5 text-right font-bold tabular-nums", r.all.unitsProfit > 0 ? "text-neon" : r.all.unitsProfit < 0 ? "text-loss" : "")}>{fmtUnits(r.all.unitsProfit)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{r.all.picks ? `${(r.all.roi * 100).toFixed(1)}%` : "—"}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{r.week ? recText(r.week) : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {rows.filter((r) => r.key === open).map((r) => (
+        <Section key={r.key} title={`${r.label}: latest picks`} href={r.href} link="Go to tab">
+          {!r.picks.length ? <Empty text="Tracking starts with today's games." /> : (
+            <ol className="divide-y divide-slate-line overflow-hidden rounded-xl border border-slate-line bg-slate-card">
+              {r.picks.map((p) => (
+                <li key={p.id} className="flex items-start justify-between gap-3 px-4 py-2.5 text-sm">
+                  <div className="min-w-0"><div className="font-semibold">{p.label}</div><div className="text-xs text-muted-foreground">{new Date(p.placedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {fmtAmerican(p.americanOdds)}</div></div>
+                  <span className={cn("shrink-0 rounded px-2 py-0.5 text-xs font-bold", p.result === "win" ? "bg-neon/15 text-neon" : p.result === "loss" ? "bg-loss/15 text-loss" : "bg-slate-raised text-ink/70")}>
+                    {p.result === "win" ? `✓ +${(p.profitUnits ?? 0).toFixed(2)}u` : p.result === "loss" ? `✗ -${p.units}u` : p.result === "pending" ? "Pending" : p.result}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Section>
+      ))}
+      <p className="mt-6 text-xs text-muted-foreground">1 unit per pick (parlays 1 unit each), graded from final scores, official stats and Kalshi results. A few weeks of picks are needed before a record means much.</p>
+    </>
   );
 }
 

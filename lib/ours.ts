@@ -53,6 +53,8 @@ export interface Candidate {
   our: number;
   /** Props: the player, so a list takes one bet per player instead of three rungs of the same one. */
   player?: string;
+  /** An alt line / alt prop (not the main line). */
+  alt?: boolean;
   /** Props whose projection leans mostly on last season (this season's average is far from it): skipped by the Daily 5. */
   stale?: boolean;
   grade: GradeInfo;
@@ -76,7 +78,7 @@ export function candidates(cards: MatchupCardData[], props: PlayerProp[]): Candi
       if (p.matchupId !== m.id || p.ourProb === undefined || p.flags?.includes("large_gap")) continue;
       out.push({ id: p.id, matchupId: m.id, kind: "prop", label: propLabel(p), odds: p.bestQuote.americanOdds, book: p.bestQuote.bookmaker.name,
         books: p.source === "kalshi" ? p.impliedProb : p.modelProb, our: ourChance(p.ourProb, p.source === "kalshi" ? p.impliedProb : p.modelProb),
-        player: p.playerName, stale: p.flags?.includes("leans_last_season"), grade: { matchupId: m.id, market: "prop", side: p.side, line: p.line, ticker: p.ticker, player: p.playerName, stat: p.stat, ...base } });
+        player: p.playerName, alt: !!p.isAlt || p.source === "kalshi", stale: p.flags?.includes("leans_last_season"), grade: { matchupId: m.id, market: "prop", side: p.side, line: p.line, ticker: p.ticker, player: p.playerName, stat: p.stat, ...base } });
     }
   }
   // one per bet (Kalshi can list the same bet twice)
@@ -165,6 +167,32 @@ export const lockParlays = (list: Candidate[]): OurParlay[] =>
  *   spread: one per player, at most 2 per game and 3 per league (counting what's already logged today)
  */
 export const DAILY_N = 5;
+
+/** Most likely tracker: the top 3 a day from the "Most likely to hit" list (55%+, -175 to +120), one per game. */
+export function likelyThree(list: Candidate[], already: Candidate[] = [], n = 3): Candidate[] {
+  const games = new Set(already.map((x) => x.matchupId));
+  const out: Candidate[] = [];
+  for (const x of list.filter((y) => y.our >= LIKELY_MIN && y.odds >= LIKELY_ODDS[0] && y.odds <= LIKELY_ODDS[1]).sort((a, b) => likelyScore(b) - likelyScore(a))) {
+    if (already.length + out.length >= n) break;
+    if (games.has(x.matchupId)) continue;
+    games.add(x.matchupId); out.push(x);
+  }
+  return out;
+}
+
+/** O/U tracker: the day's top 3 leans on main over/unders (game totals and main-line props) priced -135 to +115. */
+export function ouThree(list: Candidate[], already: Candidate[] = [], n = 3): Candidate[] {
+  const isOU = (x: Candidate) => !x.alt && (x.kind === "prop" ? x.grade.side === "over" || x.grade.side === "under" : x.grade.market === "total");
+  const games = new Set(already.map((x) => `${x.matchupId}|${x.player ?? x.grade.market}`));
+  const out: Candidate[] = [];
+  for (const x of list.filter((y) => isOU(y) && y.odds >= -135 && y.odds <= 115 && y.our - y.books >= 0.02).sort((a, b) => (b.our - b.books) - (a.our - a.books))) {
+    if (already.length + out.length >= n) break;
+    const k = `${x.matchupId}|${x.player ?? x.grade.market}`;
+    if (games.has(k)) continue;
+    games.add(k); out.push(x);
+  }
+  return out;
+}
 export function dailyFive(list: Candidate[], leagueOf: (matchupId: string) => string, already: Candidate[] = [], n = DAILY_N): Candidate[] {
   const edgeOf = (x: Candidate) => x.our - impliedProb(x.odds);
   // price edge: how much better this price is than the market's own no-vig number (line shopping, the edge that has

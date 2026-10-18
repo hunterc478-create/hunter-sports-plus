@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, CalendarDays, Layers, ListChecks, Lock, MoreHorizontal, Star, Trophy, Wallet, Scale } from "lucide-react";
+import { Activity, CalendarDays, Layers, ListChecks, Lock, MoreHorizontal, Star, Trophy, Wallet, Scale, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LeagueSwitch } from "./league";
 
@@ -17,6 +17,7 @@ const NAV: Item[] = [
   { href: "/parlays", label: "Parlays", icon: ListChecks },
   { href: "/my-bets", label: "My Bets", icon: Wallet },
   { href: "/our-picks", label: "Our Picks", icon: Trophy },
+  { href: "/records", label: "Records", icon: BarChart3 },
 ];
 const TABS = NAV.filter((n) => ["/", "/best-bets", "/props", "/my-bets"].includes(n.href));
 
@@ -38,7 +39,7 @@ export function SiteHeader() {
           <nav aria-label="Main" className="ml-auto hidden items-center gap-0.5 lg:flex">
             {NAV.map((n) => (
               <Link key={n.href} href={n.href} aria-current={is(n.href) ? "page" : undefined}
-                className={cn("whitespace-nowrap rounded-md px-1.5 py-2 text-[13px] font-semibold transition-colors",
+                className={cn("whitespace-nowrap rounded-md px-1.5 py-2 text-[12.5px] font-semibold transition-colors",
                   is(n.href) ? "bg-brand text-obsidian" : "text-ink/70 hover:bg-slate-raised hover:text-ink")}>
                 {n.label}
               </Link>

@@ -412,7 +412,7 @@ export interface TrackedPick {
   placedAt: string;
   settledAt?: string;
   league: LeagueId;
-  kind: "single" | "prop" | "alt" | "parlay" | "lock" | "ours" | "ourparlay" | "lockparlay" | "daily5";
+  kind: "single" | "prop" | "alt" | "parlay" | "lock" | "ours" | "ourparlay" | "lockparlay" | "daily5" | "likely" | "ou" | "tdpick";
   label: string;
   americanOdds: number;
   units: number;
@@ -595,6 +595,8 @@ export interface DashboardData {
   /** Lock parlays (heavy favorites both we and the books like, still beating their price) and their record. */
   lockParlayRecord?: TrackRecordSummary;
   lockParlayPicks?: TrackedPick[];
+  /** Every tracked list on one scoreboard (the Records page): all-time and last 7 days, plus its latest picks. */
+  records?: { key: string; label: string; href: string; all: TrackRecordSummary; week?: TrackRecordSummary; picks: TrackedPick[] }[];
   /** Daily 5: the five bets we'd pick each day, and their record. */
   daily5Record?: TrackRecordSummary;
   daily5Picks?: TrackedPick[];

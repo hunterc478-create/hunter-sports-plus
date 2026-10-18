@@ -43,10 +43,29 @@ export function assemble(opts: {
   const current = isMock ? history : history.filter((p) => p.modelVersion === MODEL_VERSION);
   // locks keep their own record so the main one stays comparable to earlier days
   // locks and Our Picks keep their own records
-  const trackRecord = summarize(current.filter((p) => p.kind !== "lock" && p.kind !== "ours" && p.kind !== "ourparlay" && p.kind !== "lockparlay" && p.kind !== "daily5"));
+  const trackRecord = summarize(current.filter((p) => p.kind !== "lock" && p.kind !== "ours" && !["ourparlay", "lockparlay", "daily5", "likely", "ou", "tdpick"].includes(p.kind)));
   const parlayHist = history.filter((p) => p.kind === "ourparlay");
   const parlayRecord = parlayHist.length ? summarize(parlayHist) : undefined;
   const parlayPicks = [...parlayHist].sort((a, b) => b.placedAt.localeCompare(a.placedAt)).slice(0, 60);
+  // the scoreboard: every tracked list, all-time and last 7 days
+  const weekAgo = new Date(new Date(generatedAt).getTime() - 7 * 86_400_000).toISOString();
+  const LISTS: [string, string, string, (p: TrackedPick) => boolean][] = [
+    ["best", "Best price", "/tracker/", (p) => p.modelVersion === MODEL_VERSION && (p.kind === "single" || p.kind === "alt" || p.kind === "prop")],
+    ["daily5", "Daily 5", "/our-picks/", (p) => p.kind === "daily5"],
+    ["ours", "Our Picks", "/our-picks/", (p) => p.kind === "ours"],
+    ["likely", "Most likely (top 3 a day)", "/best-bets/", (p) => p.kind === "likely"],
+    ["ou", "O/U leans (top 3 a day)", "/totals/", (p) => p.kind === "ou"],
+    ["tdpick", "TD Derby (top 3 a day)", "/td-derby/", (p) => p.kind === "tdpick"],
+    ["lock", "Locks", "/locks/", (p) => p.kind === "lock"],
+    ["lockparlay", "Lock parlays", "/parlays/", (p) => p.kind === "lockparlay"],
+    ["ourparlay", "Our parlays", "/parlays/", (p) => p.kind === "ourparlay"],
+  ];
+  const records = LISTS.map(([key, label, href, f]) => {
+    const list = history.filter(f);
+    const recent = list.filter((p) => p.placedAt >= weekAgo);
+    return { key, label, href, all: summarize(list), week: recent.length ? summarize(recent) : undefined,
+      picks: [...list].sort((a, b) => b.placedAt.localeCompare(a.placedAt)).slice(0, 30) };
+  }).filter((r) => r.all.picks > 0 || ["likely", "ou"].includes(r.key));
   const d5 = history.filter((p) => p.kind === "daily5");
   const daily5Record = d5.length ? summarize(d5) : undefined;
   const daily5Picks = [...d5].sort((a, b) => b.placedAt.localeCompare(a.placedAt)).slice(0, 80);
@@ -99,7 +118,7 @@ export function assemble(opts: {
       tdDerby: (opts.tdDerby ?? []).filter((t) => filter(t.matchupId) && open.has(t.matchupId)).slice(0, 300),
       generatedAt, isMock, topPicks: ranked.slice(0, 10), matchups: dayCards,
       props: props.filter((p) => filter(p.matchupId)).sort((a, b) => b.edge - a.edge), parlays, trackRecord, legacyRecord, recentResults,
-      locks: pickLocks(dayBets, paused), locksRecord, modelCheck: check, straightRecord, oursRecord, oursCheck, oursPicks, parlayRecord, parlayPicks, lockParlayRecord, lockParlayPicks, daily5Record, daily5Picks, oursRecordNew, bestRecordNew,
+      locks: pickLocks(dayBets, paused), locksRecord, modelCheck: check, straightRecord, oursRecord, oursCheck, oursPicks, parlayRecord, parlayPicks, lockParlayRecord, lockParlayPicks, daily5Record, daily5Picks, records, oursRecordNew, bestRecordNew,
     };
   };
 

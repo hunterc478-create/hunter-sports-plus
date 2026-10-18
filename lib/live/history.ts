@@ -12,7 +12,7 @@ import { settleProfit } from "@/lib/engine/track-record";
 import type { LiveBundle } from "./assemble";
 import { betTypeOf, GAME_EXPOSURE, MODEL_VERSION } from "./policy";
 import { getJson } from "./http";
-import { candidates, DAILY_N, dailyFive, lockParlays, ourParlays, topPicks } from "@/lib/ours";
+import { candidates, DAILY_N, dailyFive, likelyThree, lockParlays, ouThree, ourParlays, topPicks } from "@/lib/ours";
 import { sameTeam, type Game } from "./registry";
 import { DAY_TZ, dayKey } from "./day";
 import { toNflverseAbbr, type NflPlayers } from "./players/nfl";
@@ -154,6 +154,27 @@ export async function updateHistory(prev: TrackedPick[], board: LiveBundle, card
         const c = card.get(x.matchupId)!;
         add({ ...base, id: `daily5:${day}:${x.id}`, league: c.matchup.league, kind: "daily5", label: `${x.label} (${c.matchup.away.shortName} @ ${c.matchup.home.shortName})`,
           americanOdds: x.odds, units: 1, modelProb: x.our, edgeAtPick: x.our - x.books, betType: "daily 5", grade: x.grade });
+      }
+    }
+  }
+
+  // 7) Trackers for the tabs that had no record: Most likely (top 3 a day) and O/U leans (top 3 a day), logged from
+  // the Daily 5 hour for games later today, so every tab's list can be judged on results (the Records page).
+  if (hourNow >= D5_HOUR) {
+    const day = dayKey(now);
+    const slate = cards.filter((c) => c.matchup.status === "scheduled" && !c.matchup.preseason && minsTo(c.matchup.startTime) > 20 && dayKey(c.matchup.startTime) === day);
+    if (slate.length) {
+      const cands = candidates(slate, board.byDay.all.props);
+      for (const [kind, pick, betType] of [["likely", likelyThree, "most likely"], ["ou", ouThree, "o/u leans"]] as const) {
+        const logged = history.filter((p) => p.kind === kind && p.id.startsWith(`${kind}:${day}:`));
+        if (logged.length >= 3) continue;
+        const already = cands.filter((x) => logged.some((p) => p.id === `${kind}:${day}:${x.id}`));
+        for (const x of pick(cands, already)) {
+          const c = card.get(x.matchupId)!;
+          if (byId.has(`${kind}:${day}:${x.id}`)) continue;
+          add({ ...base, id: `${kind}:${day}:${x.id}`, league: c.matchup.league, kind, label: `${x.label} (${c.matchup.away.shortName} @ ${c.matchup.home.shortName})`,
+            americanOdds: x.odds, units: 1, modelProb: x.our, edgeAtPick: x.our - x.books, betType, grade: x.grade });
+        }
       }
     }
   }
