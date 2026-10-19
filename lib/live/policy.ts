@@ -63,7 +63,9 @@ export function qualifies(b: ValueBet, league: LeagueId, paused: Set<string>): b
 export function pausedTypes(history: TrackedPick[]): Set<string> {
   const byType = new Map<string, TrackedPick[]>();
   for (const p of history) {
-    if (p.modelVersion !== MODEL_VERSION || p.closingOdds == null || !p.betType) continue;
+    // locks are heavy favorites taken at about fair price on purpose, so beating the close isn't their test (10/17:
+    // Sports Plus locks were 17-7, +1.2u, but beat the close 7 of 21 and got paused, and a paused list can't recover)
+    if (p.modelVersion !== MODEL_VERSION || p.closingOdds == null || !p.betType || p.betType === "locks") continue;
     byType.set(p.betType, [...(byType.get(p.betType) ?? []), p]);
   }
   const out = new Set<string>();
