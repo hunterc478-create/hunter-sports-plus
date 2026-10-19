@@ -43,7 +43,7 @@ export function assemble(opts: {
   const current = isMock ? history : history.filter((p) => p.modelVersion === MODEL_VERSION);
   // locks keep their own record so the main one stays comparable to earlier days
   // locks and Our Picks keep their own records
-  const trackRecord = summarize(current.filter((p) => p.kind !== "lock" && p.kind !== "ours" && !["ourparlay", "lockparlay", "daily5", "likely", "ou", "tdpick"].includes(p.kind)));
+  const trackRecord = summarize(current.filter((p) => p.kind !== "lock" && p.kind !== "ours" && !["ourparlay", "lockparlay", "daily5", "likely", "ou", "tdpick", "gamealt"].includes(p.kind)));
   const parlayHist = history.filter((p) => p.kind === "ourparlay");
   const parlayRecord = parlayHist.length ? summarize(parlayHist) : undefined;
   const parlayPicks = [...parlayHist].sort((a, b) => b.placedAt.localeCompare(a.placedAt)).slice(0, 60);
@@ -56,6 +56,7 @@ export function assemble(opts: {
     ["likely", "Most likely (top 3 a day)", "/best-bets/", (p) => p.kind === "likely"],
     ["ou", "O/U leans (top 3 a day)", "/totals/", (p) => p.kind === "ou"],
     ["tdpick", "TD Derby (top 3 a day)", "/td-derby/", (p) => p.kind === "tdpick"],
+    ["gamealt", "Game pages: alt (top 3 a game)", "/", (p) => p.kind === "gamealt"],
     ["lock", "Locks", "/locks/", (p) => p.kind === "lock"],
     ["lockparlay", "Lock parlays", "/parlays/", (p) => p.kind === "lockparlay"],
     ["ourparlay", "Our parlays", "/parlays/", (p) => p.kind === "ourparlay"],
@@ -65,7 +66,7 @@ export function assemble(opts: {
     const recent = list.filter((p) => p.placedAt >= weekAgo);
     return { key, label, href, all: summarize(list), week: recent.length ? summarize(recent) : undefined,
       picks: [...list].sort((a, b) => b.placedAt.localeCompare(a.placedAt)).slice(0, 30) };
-  }).filter((r) => r.all.picks > 0 || ["likely", "ou"].includes(r.key));
+  }).filter((r) => r.all.picks > 0 || ["likely", "ou", "gamealt"].includes(r.key));
   const d5 = history.filter((p) => p.kind === "daily5");
   const daily5Record = d5.length ? summarize(d5) : undefined;
   const daily5Picks = [...d5].sort((a, b) => b.placedAt.localeCompare(a.placedAt)).slice(0, 80);

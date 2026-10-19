@@ -168,6 +168,37 @@ export const lockParlays = (list: Candidate[]): OurParlay[] =>
  */
 export const DAILY_N = 5;
 
+/** A game's alt spread / alt total rungs (Kalshi ladders) as candidates, our chance the same way the Alt tab shows it. */
+export function altLineCandidates(c: MatchupCardData): Candidate[] {
+  const m = c.matchup;
+  const base = { home: m.home.name, away: m.away.name, homeAbbr: m.home.abbreviation, awayAbbr: m.away.abbreviation, start: m.startTime };
+  const out: Candidate[] = [];
+  for (const b of c.altLadders ?? []) {
+    const spread = b.market === "alt_spread";
+    const team = b.side === "home" ? m.home.shortName : m.away.shortName;
+    for (const r of b.altLines ?? []) {
+      const books = r.marketProb ?? r.modelProb;
+      if (books === undefined || r.modelOnlyProb === undefined || !sane(r.modelOnlyProb, books)) continue;
+      out.push({ id: `${b.id}:${r.line}`, matchupId: m.id, kind: "line", alt: true, odds: r.americanOdds, book: r.bookmaker, books, our: ourChance(r.modelOnlyProb, books),
+        label: spread ? `${team} ${r.line > 0 ? "+" : ""}${r.line} (alt)` : `${b.side === "over" ? "Over" : "Under"} ${r.line} (alt)`,
+        grade: { matchupId: m.id, market: b.market, side: b.side, line: r.line, ...base } });
+    }
+  }
+  return out;
+}
+
+/** Game pages alt tracker: a game's top 3 on its Alt tab, "Most likely" order (55%+, -175 to +120), one per player. */
+export function gameAltThree(list: Candidate[], n = 3): Candidate[] {
+  const players = new Set<string>(), out: Candidate[] = [];
+  for (const x of list.filter((y) => y.alt && y.our >= LIKELY_MIN && y.odds >= LIKELY_ODDS[0] && y.odds <= LIKELY_ODDS[1]).sort((a, b) => likelyScore(b) - likelyScore(a))) {
+    if (out.length >= n) break;
+    const k = x.player ? x.player.toLowerCase() : `${x.grade.market}|${x.grade.side}`;
+    if (players.has(k)) continue;
+    players.add(k); out.push(x);
+  }
+  return out;
+}
+
 /** Most likely tracker: the top 3 a day from the "Most likely to hit" list (55%+, -175 to +120), one per game. */
 export function likelyThree(list: Candidate[], already: Candidate[] = [], n = 3): Candidate[] {
   const games = new Set(already.map((x) => x.matchupId));

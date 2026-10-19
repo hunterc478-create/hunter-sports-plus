@@ -12,7 +12,7 @@ import { settleProfit } from "@/lib/engine/track-record";
 import type { LiveBundle } from "./assemble";
 import { betTypeOf, GAME_EXPOSURE, MODEL_VERSION } from "./policy";
 import { getJson } from "./http";
-import { candidates, DAILY_N, dailyFive, likelyThree, lockParlays, ouThree, ourParlays, topPicks } from "@/lib/ours";
+import { altLineCandidates, candidates, DAILY_N, dailyFive, gameAltThree, likelyThree, lockParlays, ouThree, ourParlays, topPicks } from "@/lib/ours";
 import { sameTeam, type Game } from "./registry";
 import { DAY_TZ, dayKey } from "./day";
 import { toNflverseAbbr, type NflPlayers } from "./players/nfl";
@@ -179,6 +179,18 @@ export async function updateHistory(prev: TrackedPick[], board: LiveBundle, card
     }
   }
 
+  // 8) Game pages alt tracker: when a game enters the log window, its top 3 Alt-tab picks (alt props + alt lines)
+  const altIn = new Set(history.filter((p) => p.kind === "gamealt" && p.grade).map((p) => p.grade!.matchupId));
+  for (const c of cards.filter((x) => x.matchup.status === "scheduled" && !x.matchup.preseason && inWindow(x.matchup.startTime) && !altIn.has(x.matchup.id))) {
+    const list = [...candidates([c], board.byDay.all.props).filter((x) => x.alt), ...altLineCandidates(c)];
+    for (const x of gameAltThree(list)) {
+      const id = `gamealt:${x.id}`;
+      if (byId.has(id)) continue;
+      add({ ...base, id, league: c.matchup.league, kind: "gamealt", label: `${x.label} (${c.matchup.away.shortName} @ ${c.matchup.home.shortName})`,
+        americanOdds: x.odds, units: 1, modelProb: x.our, edgeAtPick: x.our - x.books, betType: "game alt", grade: x.grade });
+    }
+  }
+
   // 5) Our parlays: the site's own Safest 2-leg, Safest 3-leg and Moneyline parlay, built from games starting in the
   // next 12 hours and logged when their first leg's game enters the log window. One of each per day, 1 unit each.
   const soonCards = cards.filter((c) => c.matchup.status === "scheduled" && minsTo(c.matchup.startTime) > 0 && minsTo(c.matchup.startTime) <= 12 * 60);
@@ -249,7 +261,7 @@ export async function updateHistory(prev: TrackedPick[], board: LiveBundle, card
     p.settledAt = now.toISOString();
     p.profitUnits = settleProfit(p);
   }
-  return history.slice(-3000);
+  return history.slice(-10000);   // every tracked list stays in the record (was 3,000)
 }
 
 function gradeLine(m: Matchup, g: GradeInfo): PickResult {

@@ -412,7 +412,7 @@ export interface TrackedPick {
   placedAt: string;
   settledAt?: string;
   league: LeagueId;
-  kind: "single" | "prop" | "alt" | "parlay" | "lock" | "ours" | "ourparlay" | "lockparlay" | "daily5" | "likely" | "ou" | "tdpick";
+  kind: "single" | "prop" | "alt" | "parlay" | "lock" | "ours" | "ourparlay" | "lockparlay" | "daily5" | "likely" | "ou" | "tdpick" | "gamealt";
   label: string;
   americanOdds: number;
   units: number;
