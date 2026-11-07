@@ -66,6 +66,10 @@ main{padding:12px 10px}
 .meta span{background:var(--card2);border-radius:8px;padding:4px 8px;font-size:11.5px;color:var(--mut);font-weight:600}
 .meta span b{color:var(--txt)}
 .meta span.g b{color:var(--grn)}
+.why{margin:10px 0 0;padding:10px 10px 10px 12px;background:rgba(59,130,246,.07);border-left:3px solid var(--acc);border-radius:8px;list-style:none}
+.why b{display:block;font-size:10.5px;letter-spacing:.06em;color:var(--acc);margin-bottom:4px}
+.why li{font-size:12.5px;line-height:1.45;padding:2px 0 2px 14px;position:relative;color:#c9d2df}
+.why li:before{content:"•";position:absolute;left:2px;color:var(--acc)}
 .res{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px 11px;margin-bottom:6px}
 .res img{width:22px;height:22px;object-fit:contain}
 .res .t{flex:1;min-width:0}
@@ -128,6 +132,7 @@ function pickCard(p, top) {
     <div class="mu">${logo(p.away)}<b>${esc(p.away.short)}</b> ${p.sport === "Tennis" ? "vs" : "@"} <b>${esc(p.home.short)}</b>${logo(p.home)}</div>
     <div class="bet"><div class="l">${t ? logo(t) : ""}${esc(p.label)}</div><div class="odds"><b>${fmt(p.odds)}</b><small>${esc(p.book)}</small></div></div>
     <div class="meta"><span>Fair <b>${pctS(p.fair)}</b></span><span class="g">Edge <b>+${(p.ev * 100).toFixed(1)}%</b></span><span>${p.books} books</span>${mine ? `<span>${mine}</span>` : ""}${p.result ? `<span><b>${esc(p.score || "")}</b></span>` : ""}</div>
+    ${p.why && p.why.length && !p.result ? `<ul class="why"><b>WHY</b>${p.why.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>` : ""}
   </div>`;
 }
 function resRow(p) {

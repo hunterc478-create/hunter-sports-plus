@@ -28,6 +28,7 @@ export interface Pick {
   myBooks?: { name: string; odds: number }[];
   loggedAt: string;
   closeFair?: number; closeOdds?: number;
+  why?: string[];
   result?: "win" | "loss" | "push" | "void"; units?: number; score?: string; settledAt?: string;
 }
 
@@ -133,6 +134,101 @@ function tennisTotalCands(bundle: J, cache: J | null, now: number): Cand[] {
   return out;
 }
 
+/* ---------------- the "why": ESPN's game preview, put into words ---------------- */
+const ESPN_PATH: Record<string, string> = {
+  NBA: "basketball/nba", WNBA: "basketball/wnba", NCAAB: "basketball/mens-college-basketball", NHL: "hockey/nhl", MLB: "baseball/mlb",
+  EPL: "soccer/eng.1", LALIGA: "soccer/esp.1", SERIEA: "soccer/ita.1", BUNDESLIGA: "soccer/ger.1", LIGUE1: "soccer/fra.1", MLS: "soccer/usa.1", UCL: "soccer/uefa.champions",
+};
+const UNIT: Record<string, string> = { NBA: "points", WNBA: "points", NCAAB: "points", NHL: "goals", MLB: "runs" };
+const nm = (x?: string) => String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+function sameTeam(espn: J, t: Team) {
+  const ours = [t.name, t.short, t.abbr].filter(Boolean).map(nm);
+  const theirs = [espn.displayName, espn.shortDisplayName, espn.name, espn.location, espn.abbreviation, espn.nickname].filter(Boolean).map(nm);
+  if (ours.some((o) => theirs.includes(o))) return true;
+  const full = nm(t.name), d = nm(espn.displayName);
+  return !!full && !!d && (full.includes(d) || d.includes(full));
+}
+const boards: Record<string, Promise<J | null>> = {};
+async function espnEvent(p: Pick): Promise<string | null> {
+  const path = ESPN_PATH[p.league]; if (!path) return null;
+  const day = new Date(p.start).toLocaleDateString("en-CA", { timeZone: "America/New_York" }).replace(/-/g, "");
+  const extra = p.league === "NCAAB" ? "&groups=50&limit=400" : "";
+  const b = await (boards[path + day] ??= getJson<J>(`https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard?dates=${day}${extra}`));
+  for (const ev of b?.events ?? []) {
+    const cs = ev.competitions?.[0]?.competitors ?? [];
+    const h = cs.find((c: J) => c.homeAway === "home")?.team, a = cs.find((c: J) => c.homeAway === "away")?.team;
+    if (h && a && ((sameTeam(h, p.home) && sameTeam(a, p.away)) || (sameTeam(h, p.away) && sameTeam(a, p.home)))) return String(ev.id);
+  }
+  return null;
+}
+const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);
+const f1 = (x: number) => (Math.round(x * 10) / 10).toString();
+
+async function buildWhy(p: Pick): Promise<string[]> {
+  const out: string[] = [];
+  const id = await espnEvent(p);
+  const sum = id ? await getJson<J>(`https://site.api.espn.com/apis/site/v2/sports/${ESPN_PATH[p.league]}/summary?event=${id}`) : null;
+  const unit = UNIT[p.league] || "goals";
+  const comp = sum?.header?.competitions?.[0];
+  const cs: J[] = comp?.competitors ?? [];
+  const side = (ha: "home" | "away") => cs.find((c) => c.homeAway === ha);
+  const ours = p.side === "home" || p.side === "away" ? p.side : null;
+  const theirs = ours === "home" ? "away" : ours === "away" ? "home" : null;
+  const tname = (ha: "home" | "away") => (ha === "home" ? p.home.short : p.away.short);
+
+  // last five: record and scoring
+  const l5 = (ha: "home" | "away") => {
+    const tid = String(side(ha)?.team?.id ?? "");
+    const blk = (sum?.lastFiveGames ?? []).find((x: J) => String(x.team?.id) === tid);
+    const evs: J[] = blk?.events ?? [];
+    if (!evs.length) return null;
+    const pf: number[] = [], pa: number[] = [];
+    let w = 0, l = 0;
+    for (const e of evs) {
+      const home = String(e.homeTeamId) === tid;
+      const a = Number(home ? e.homeTeamScore : e.awayTeamScore), b = Number(home ? e.awayTeamScore : e.homeTeamScore);
+      if (Number.isFinite(a) && Number.isFinite(b)) { pf.push(a); pa.push(b); }
+      if (/^w/i.test(e.gameResult || "")) w++; else if (/^l/i.test(e.gameResult || "")) l++;
+    }
+    return { w, l, n: evs.length, pf: avg(pf), pa: avg(pa) };
+  };
+  const rec = (ha: "home" | "away", type: RegExp) => (side(ha)?.record ?? []).find((r: J) => type.test(r.type || r.name || ""))?.summary;
+  const outs = (ha: "home" | "away") => {
+    const tid = String(side(ha)?.team?.id ?? "");
+    const blk = (sum?.injuries ?? []).find((x: J) => String(x.team?.id) === tid);
+    return (blk?.injuries ?? []).filter((i: J) => /^out/i.test(i.status || "")).map((i: J) => i.athlete?.displayName).filter(Boolean).slice(0, 3) as string[];
+  };
+  const proj = (ha: "home" | "away") => Number(sum?.predictor?.[ha === "home" ? "homeTeam" : "awayTeam"]?.gameProjection);
+
+  if (ours && theirs) {
+    const me = l5(ours), opp = l5(theirs);
+    if (me && Number.isFinite(me.pf)) out.push(`${tname(ours)} ${me.w >= 3 ? "are rolling:" : "are"} ${me.w}-${me.l} in their last ${me.n}, scoring ${f1(me.pf)} and allowing ${f1(me.pa)} ${unit} a game`);
+    if (opp && Number.isFinite(opp.pa)) out.push(`${tname(theirs)} ${opp.l >= 3 ? "are struggling:" : "are"} ${opp.w}-${opp.l} in their last ${opp.n}, giving up ${f1(opp.pa)} ${unit} a game`);
+    const venueMe = rec(ours, ours === "home" ? /^home/i : /^(road|away)/i), venueOpp = rec(theirs, theirs === "home" ? /^home/i : /^(road|away)/i);
+    if (venueMe || venueOpp) out.push([venueMe && `${tname(ours)} are ${venueMe} ${ours === "home" ? "at home" : "on the road"}`, venueOpp && `${tname(theirs)} are ${venueOpp} ${theirs === "home" ? "at home" : "on the road"}`].filter(Boolean).join("; "));
+    const o = outs(theirs), m = outs(ours);
+    if (o.length) out.push(`${tname(theirs)} are missing ${o.join(", ")}`);
+    if (m.length) out.push(`Heads up: ${tname(ours)} are without ${m.join(", ")}`);
+    const pr = proj(ours);
+    if (Number.isFinite(pr)) out.push(pr / 100 >= p.fair - 0.02 ? `ESPN's matchup model also likes ${tname(ours)} (${Math.round(pr)}% to win)` : `ESPN's matchup model is lower on ${tname(ours)} (${Math.round(pr)}% to win), so this one is mostly about the price`);
+  } else if (p.market === "total" && p.line != null && p.sport !== "Tennis") {
+    const h = l5("home"), a = l5("away");
+    if (h && a && Number.isFinite(h.pf) && Number.isFinite(a.pf)) {
+      const ht = h.pf + h.pa, at = a.pf + a.pa, both = (ht + at) / 2;
+      out.push(`${p.home.short}'s last ${h.n} games averaged ${f1(ht)} total ${unit}; ${p.away.short}'s averaged ${f1(at)}`);
+      out.push(both > p.line ? `Both teams' recent games run ${f1(both - p.line)} ${unit} over this ${p.line} line${p.side === "under" ? ", so the under is a price play against the trend" : ""}` : `Both teams' recent games run ${f1(p.line - both)} ${unit} under this ${p.line} line${p.side === "over" ? ", so the over is a price play against the trend" : ""}`);
+    }
+    const o = [...outs("home"), ...outs("away")];
+    if (o.length) out.push(`Out: ${o.slice(0, 4).join(", ")}`);
+  }
+  // the price, always
+  const others = (p.myBooks ?? []).filter((b) => b.name !== p.book);
+  out.push(`${p.book} has ${fmtOdds(p.odds)}, while the market's fair price is about ${fmtOdds(fairOdds(p.fair))} (${Math.round(p.fair * 100)}% to hit)${others.length ? ` · ${others.map((b) => `${b.name} ${fmtOdds(b.odds)}`).join(", ")}` : ""}`);
+  return out.slice(0, 5);
+}
+const fmtOdds = (o: number) => (o > 0 ? "+" + Math.round(o) : String(Math.round(o)));
+const fairOdds = (q: number) => (q >= 0.5 ? -100 * q / (1 - q) : 100 * (1 - q) / q);
+
 /* ---------------- grading ---------------- */
 function gradeScore(p: Pick, home: number, away: number): "win" | "loss" | "push" {
   const line = p.line ?? 0;
@@ -197,6 +293,15 @@ async function main() {
     picks.push(p); byId.set(id, p); games.add(c.matchupId); perDay.set(k, (perDay.get(k) ?? 0) + 1); added++;
   }
 
+  // 3b) the "why" for open picks (refreshed each run so injuries stay current)
+  let whys = 0;
+  for (const p of picks) {
+    if (p.result || new Date(p.start).getTime() <= now) continue;
+    try { const w = await buildWhy(p); if (w.length) { p.why = w; whys++; } } catch {}
+  }
+  const sample = picks.find((p) => !p.result && p.why && p.why.length > 1);
+  if (sample) console.log(`picks: why sample (${sample.league} ${sample.label}):\n  - ` + sample.why!.join("\n  - "));
+
   // 4) grade
   let graded = 0;
   for (const p of picks) {
@@ -220,6 +325,7 @@ async function main() {
   fs.mkdirSync(DATA, { recursive: true });
   fs.writeFileSync(path.join(DATA, "picks.json"), JSON.stringify({ updatedAt: new Date(now).toISOString(), startedAt: picks.length ? picks[picks.length - 1].loggedAt : null, picks }));
   const open = picks.filter((p) => !p.result).length;
+  console.log(`picks: why written for ${whys} open picks`);
   console.log(`picks: ${cands.length} candidates with ${MIN_EV * 100}%+ value · ${added} new · ${graded} graded · ${open} open · ${picks.length} total`);
 }
 
