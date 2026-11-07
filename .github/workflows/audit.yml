@@ -1,0 +1,33 @@
+name: Data peek (temporary)
+on: workflow_dispatch
+jobs:
+  peek:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          B=https://hunterc478-create.github.io/hunter-sports-plus/data
+          curl -fsS $B/live.json -o l.json; curl -fsS $B/results.json -o r.json || echo '{}' > r.json; curl -fsS $B/tennis-odds.json -o t.json || echo '{}' > t.json
+          ls -la *.json
+          python3 - <<'PY'
+          import json, collections
+          b=json.load(open('l.json')); d=b['byDay']['all']
+          print("bundle keys:", list(b.keys())); print("day keys:", list(d.keys()))
+          books=collections.Counter(); mk=collections.Counter(); lg=collections.Counter(); st=collections.Counter()
+          ex=None
+          for c in d['matchups']:
+            m=c['matchup']; lg[m['league']]+=1; st[m['status']]+=1
+            for v in [c['recommended']]+c.get('otherBets',[]):
+              mk[(m['league'],v['market'])]+=1
+              for x in v.get('books') or []: books[x['name']]+=1
+              if ex is None and v.get('books') and v.get('marketProb'): ex=(m,v)
+          print("books:", books.most_common(40)); print("leagues:", lg); print("status:", st)
+          print("markets:", sorted(mk.items()))
+          m,v=ex; print("EXAMPLE matchup:", json.dumps(m)[:700]); print("EXAMPLE bet:", json.dumps({k:v[k] for k in v if k not in ('altLines','rationale')})[:1200])
+          ten=[c for c in d['matchups'] if c['matchup']['league'] in ('ATP','WTA')]
+          print("tennis cards:", len(ten)); 
+          if ten: print(json.dumps(ten[0]['matchup'])[:500]); print([ (v['market'],v['label'],v['bestQuote']['americanOdds'],v.get('marketBooks')) for v in [ten[0]['recommended']]+ten[0].get('otherBets',[])])
+          r=json.load(open('r.json')); print("results n:", len(r), list(r.items())[:2])
+          t=json.load(open('t.json')); print("tennis-odds:", type(t).__name__, json.dumps(t)[:600])
+          print("props sample:", json.dumps(d['props'][0])[:600] if d.get('props') else None)
+          print("props leagues:", collections.Counter((p['matchupId'].split('-')[0], p['stat']) for p in d.get('props',[])).most_common(15))
+          PY
