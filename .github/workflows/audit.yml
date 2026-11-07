@@ -1,0 +1,39 @@
+name: Record audit (temporary)
+on: workflow_dispatch
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -fsS https://hunterc478-create.github.io/hunter-sports-plus/data/history.json -o h.json
+          python3 - <<'PY'
+          import json, collections
+          d = json.load(open('h.json'))
+          picks = d if isinstance(d, list) else d.get('picks') or d.get('history') or next(v for v in d.values() if isinstance(v, list))
+          print("total picks:", len(picks), "| keys:", list(d.keys())[:10] if isinstance(d, dict) else "list")
+          s = [p for p in picks if p.get('result') in ('win','loss','push')]
+          print("settled:", len(s), "| first:", min(p['placedAt'] for p in picks)[:10], "| last:", max(p['placedAt'] for p in picks)[:10])
+          def table(keyf, title):
+              agg = collections.defaultdict(lambda: [0,0,0,0.0,0.0,0,0])
+              for p in s:
+                  a = agg[keyf(p)]
+                  a[0] += p['result']=='win'; a[1] += p['result']=='loss'; a[2] += p['result']=='push'
+                  a[3] += p.get('profitUnits') or 0; a[4] += p.get('units') or 1
+                  if p.get('closingOdds') is not None:
+                      imp = lambda o: 100/(o+100) if o>0 else -o/(-o+100)
+                      a[5] += 1; a[6] += imp(p['closingOdds']) > imp(p['americanOdds'])
+              print(f"\n== {title}")
+              print(f"{'group':34} {'W-L-P':>11} {'units':>8} {'ROI':>7} {'avgOdds':>8} {'CLV beat':>9}")
+              for k, a in sorted(agg.items(), key=lambda kv: kv[1][3]):
+                  n = a[0]+a[1]+a[2]
+                  odds = [p['americanOdds'] for p in s if keyf(p)==k]
+                  avg = sum(odds)/len(odds)
+                  print(f"{str(k)[:34]:34} {a[0]:>3}-{a[1]}-{a[2]:<4} {a[3]:>8.1f} {100*a[3]/max(a[4],1e-9):>6.1f}% {avg:>8.0f} {(f'{a[6]}/{a[5]}' if a[5] else '-'):>9}")
+          table(lambda p: p['league'], "by league")
+          table(lambda p: p.get('kind'), "by kind")
+          table(lambda p: p.get('betType') or p.get('kind'), "by bet type")
+          table(lambda p: ('fav' if p['americanOdds']<0 else 'dog') + (' <-200' if p['americanOdds']<-200 else ' +200+' if p['americanOdds']>=200 else ''), "by price")
+          table(lambda p: p['placedAt'][:7], "by month")
+          per_day = collections.Counter(p['placedAt'][:10] for p in picks if p.get('kind') not in ('parlay','ourparlay','lockparlay'))
+          print("\npicks per day (last 14):", sorted(per_day.items())[-14:])
+          PY
