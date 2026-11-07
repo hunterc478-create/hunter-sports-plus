@@ -39,7 +39,7 @@ export interface TennisContext {
 export const tennisCtx: Partial<Record<LeagueId, TennisContext>> = {};
 
 const CACHE = path.join("public", "data", "tennis-odds.json");
-type CachedEv = { league: LeagueId; home: string; away: string; commence: string; quotes: { side: "home" | "away"; price: number; book: string }[] };
+type CachedEv = { league: LeagueId; home: string; away: string; commence: string; quotes: { side: "home" | "away" | "over" | "under"; price: number; book: string; point?: number }[] };
 type Cache = { fetchedAt?: string; events: CachedEv[] };
 /**
  * The cached prices: this run's file if a refresh just wrote it, else the copy published with the site (each run
@@ -73,12 +73,15 @@ export async function refreshTennisOdds(leagues: LeagueId[]): Promise<number | n
   const events: CachedEv[] = [];
   for (const lg of leagues.filter((l): l is "ATP" | "WTA" => l === "ATP" || l === "WTA")) {
     for (const sp of sports.filter((x) => x.active && x.key.startsWith(TOUR[lg].odds))) {
-      const data = await getJson<{ home_team: string; away_team: string; commence_time: string; bookmakers: { title: string; markets: { key: string; outcomes: { name: string; price: number }[] }[] }[] }[]>(
-        `https://api.the-odds-api.com/v4/sports/${sp.key}/odds`, { apiKey: key, regions: "us", markets: "h2h", oddsFormat: "american" });   // one region = 1 credit per tournament
+      const data = await getJson<{ home_team: string; away_team: string; commence_time: string; bookmakers: { title: string; markets: { key: string; outcomes: { name: string; price: number; point?: number }[] }[] }[] }[]>(
+        `https://api.the-odds-api.com/v4/sports/${sp.key}/odds`, { apiKey: key, regions: "us", markets: "h2h,totals", oddsFormat: "american" });   // one region, two markets = 2 credits per tournament
       for (const ev of data ?? []) {
         const quotes: CachedEv["quotes"] = [];
-        for (const bk of ev.bookmakers) for (const m of bk.markets) if (m.key === "h2h") for (const q of m.outcomes)
-          quotes.push({ side: samePlayer(q.name, ev.home_team) ? "home" : "away", price: q.price, book: bk.title });
+        for (const bk of ev.bookmakers) for (const m of bk.markets) for (const q of m.outcomes) {
+          if (m.key === "h2h") quotes.push({ side: samePlayer(q.name, ev.home_team) ? "home" : "away", price: q.price, book: bk.title });
+          // total games (read by scripts/picks.ts)
+          else if (m.key === "totals" && q.point != null) quotes.push({ side: /over/i.test(q.name) ? "over" : "under", price: q.price, book: bk.title, point: q.point });
+        }
         if (quotes.length) events.push({ league: lg, home: ev.home_team, away: ev.away_team, commence: ev.commence_time, quotes });
       }
     }
@@ -142,7 +145,7 @@ export async function tennisGames(reg: Registry, lg: "ATP" | "WTA", now: Date): 
         added.push({ g, comp, names });
         if (odds && comp2.status === "scheduled") {
           const flip = !samePlayer(odds.home, names[0]);
-          for (const q of odds.quotes) reg.addQuote(g, "moneyline", flip ? (q.side === "home" ? "away" : "home") : q.side, q.price, undefined, q.book);
+          for (const q of odds.quotes) if (q.side === "home" || q.side === "away") reg.addQuote(g, "moneyline", flip ? (q.side === "home" ? "away" : "home") : q.side, q.price, undefined, q.book);
           priced++;
         }
       }

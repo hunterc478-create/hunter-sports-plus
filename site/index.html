@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0e15">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sports Plus">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Hunter Sports Plus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0e15;--card:#121925;--card2:#18212f;--line:#243044;--txt:#e8edf5;--mut:#8592a6;--grn:#22c55e;--grnbg:rgba(34,197,94,.15);--red:#ef4444;--redbg:rgba(239,68,68,.15);--acc:#3b82f6}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--txt);font-family:Inter,system-ui,sans-serif;font-size:14px}
+body{padding-bottom:calc(env(safe-area-inset-bottom) + 20px)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+img{display:block}
+.top{position:sticky;top:0;z-index:20;background:rgba(10,14,21,.96);backdrop-filter:blur(8px);padding:calc(env(safe-area-inset-top) + 10px) 0 0;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;justify-content:space-between;padding:0 14px 10px}
+.brand h1{font-size:18px;margin:0;font-weight:800;letter-spacing:-.02em}
+.brand h1 span{color:var(--acc)}
+.upd{font-size:11px;color:var(--mut);display:flex;align-items:center;gap:6px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--grn);box-shadow:0 0 0 3px rgba(34,197,94,.2)}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding:0 14px 10px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;padding:8px 14px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:13px;font-weight:700;color:var(--mut);display:flex;gap:6px;align-items:center}
+.tab.on{background:var(--txt);color:#000;border-color:var(--txt)}
+.tab i{font-style:normal;font-size:11px;background:var(--acc);color:#fff;border-radius:999px;padding:0 6px;line-height:17px}
+.tab.on i{background:#000}
+main{padding:12px 10px}
+.rec{background:linear-gradient(135deg,#142033,#121925);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+.rec .hd{display:flex;justify-content:space-between;align-items:baseline}
+.rec .hd span{color:var(--mut);font-size:12px;font-weight:600}
+.rec .u{font-size:30px;font-weight:800;letter-spacing:-.02em}
+.rec .u.p{color:var(--grn)}.rec .u.n{color:var(--red)}
+.kp{display:flex;gap:6px;margin-top:10px}
+.kp div{flex:1;background:rgba(255,255,255,.04);border-radius:10px;padding:7px 4px;text-align:center}
+.kp b{display:block;font-size:15px}.kp small{color:var(--mut);font-size:10.5px;font-weight:600}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.mini{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;text-align:left}
+.mini .s{font-weight:700;font-size:13px}.mini .s small{color:var(--mut);font-weight:600;font-size:11px;margin-left:4px}
+.mini .v{font-size:19px;font-weight:800;margin-top:2px}
+.mini .w{font-size:11.5px;color:var(--mut)}
+.sec{display:flex;justify-content:space-between;align-items:center;color:var(--mut);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin:16px 4px 8px}
+.pick{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:8px}
+.pick.top{border-color:rgba(59,130,246,.6);box-shadow:0 0 0 1px rgba(59,130,246,.25) inset}
+.ph{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--mut);font-weight:600}
+.ph .lg{display:flex;align-items:center;gap:6px}
+.badge{font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;letter-spacing:.03em}
+.badge.top{background:var(--acc);color:#fff}.badge.live{background:var(--redbg);color:var(--red)}
+.badge.win{background:var(--grnbg);color:var(--grn)}.badge.loss{background:var(--redbg);color:var(--red)}.badge.push,.badge.void{background:var(--card2);color:var(--mut)}
+.mu{display:flex;align-items:center;gap:8px;margin:9px 0 2px;font-size:13px;color:var(--mut)}
+.mu img{width:24px;height:24px;object-fit:contain}
+.mu b{color:var(--txt);font-weight:600}
+.bet{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px}
+.bet .l{font-size:18px;font-weight:800;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.bet .l img{width:26px;height:26px;object-fit:contain}
+.odds{text-align:right;flex:0 0 auto}
+.odds b{display:block;font-size:18px;font-weight:800}
+.odds small{color:var(--mut);font-size:11px;font-weight:600}
+.meta{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.meta span{background:var(--card2);border-radius:8px;padding:4px 8px;font-size:11.5px;color:var(--mut);font-weight:600}
+.meta span b{color:var(--txt)}
+.meta span.g b{color:var(--grn)}
+.res{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px 11px;margin-bottom:6px}
+.res img{width:22px;height:22px;object-fit:contain}
+.res .t{flex:1;min-width:0}
+.res .t div{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.res .t small{color:var(--mut);font-size:11px}
+.res .u{font-weight:800;font-size:13px;width:50px;text-align:right}
+.empty{color:var(--mut);text-align:center;padding:26px 16px;line-height:1.55;background:var(--card);border:1px dashed var(--line);border-radius:14px}
+.more{display:block;width:100%;text-align:center;color:var(--acc);font-weight:700;padding:10px}
+.foot{color:var(--mut);font-size:11px;text-align:center;padding:16px 10px;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="brand"><h1>Sports <span>Plus</span></h1><div class="upd"><i class="dot"></i><span id="upd">Loading…</span></div></div>
+  <div class="tabs" id="tabs"></div>
+</div>
+<main id="main"><div class="empty">Loading picks…</div></main>
+
+<script>
+"use strict";
+const SPORTS = ["NBA", "NHL", "College Hoops", "Soccer", "Tennis"];
+const ICON = { All: "🔥", NBA: "🏀", NHL: "🏒", "College Hoops": "🏀", Soccer: "⚽", Tennis: "🎾", WNBA: "🏀", MLB: "⚾" };
+const LG = { EPL: "Premier League", LALIGA: "La Liga", SERIEA: "Serie A", BUNDESLIGA: "Bundesliga", LIGUE1: "Ligue 1", MLS: "MLS", UCL: "Champions League", NCAAB: "College Hoops", ATP: "ATP", WTA: "WTA" };
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (o) => (o > 0 ? "+" + o : String(o));
+const dec = (o) => (o > 0 ? 1 + o / 100 : 1 + 100 / -o);
+const imp = (o) => 1 / dec(o);
+const pctS = (x) => Math.round(x * 100) + "%";
+const u = (x) => (x >= 0 ? "+" : "") + x.toFixed(1) + "u";
+const day = (iso) => new Date(iso).toLocaleDateString("en-CA");
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+let DATA = { picks: [] }, TAB = store.get("tab") || "All", SHOWALL = false;
+
+function record(list) {
+  const s = list.filter((p) => p.result && p.result !== "void");
+  const w = s.filter((p) => p.result === "win").length, l = s.filter((p) => p.result === "loss").length, pu = s.filter((p) => p.result === "push").length;
+  const units = s.reduce((a, p) => a + (p.units || 0), 0);
+  const clv = s.filter((p) => p.closeFair != null);
+  const beat = clv.filter((p) => p.closeFair > imp(p.odds)).length;
+  return { w, l, pu, n: s.length, units, roi: s.length ? units / s.length : 0, hit: w + l ? w / (w + l) : 0, clv: clv.length ? beat / clv.length : null };
+}
+function when(iso) {
+  const d = new Date(iso), now = new Date();
+  const t = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (day(iso) === day(now.toISOString())) return "Today " + t;
+  const tm = new Date(now); tm.setDate(tm.getDate() + 1);
+  if (day(iso) === day(tm.toISOString())) return "Tomorrow " + t;
+  return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) + " " + t;
+}
+const logo = (t) => (t?.logo ? `<img src="${esc(t.logo)}" alt="" onerror="this.style.visibility='hidden'">` : "");
+function betTeam(p) { return p.side === "home" ? p.home : p.side === "away" ? p.away : null; }
+
+function pickCard(p, top) {
+  const live = !p.result && new Date(p.start) <= new Date();
+  const t = betTeam(p);
+  const mine = (p.myBooks || []).filter((b) => b.name !== p.book).slice(0, 2).map((b) => `${esc(b.name)} <b>${fmt(b.odds)}</b>`).join(" · ");
+  const badge = p.result ? `<span class="badge ${p.result}">${p.result.toUpperCase()}</span>` : live ? `<span class="badge live">● LIVE</span>` : top ? `<span class="badge top">TOP PICK</span>` : "";
+  return `<div class="pick ${top && !p.result ? "top" : ""}">
+    <div class="ph"><span class="lg">${ICON[p.sport] || ""} ${esc(LG[p.league] || p.league)} · ${esc(when(p.start))}</span>${badge}</div>
+    <div class="mu">${logo(p.away)}<b>${esc(p.away.short)}</b> ${p.sport === "Tennis" ? "vs" : "@"} <b>${esc(p.home.short)}</b>${logo(p.home)}</div>
+    <div class="bet"><div class="l">${t ? logo(t) : ""}${esc(p.label)}</div><div class="odds"><b>${fmt(p.odds)}</b><small>${esc(p.book)}</small></div></div>
+    <div class="meta"><span>Fair <b>${pctS(p.fair)}</b></span><span class="g">Edge <b>+${(p.ev * 100).toFixed(1)}%</b></span><span>${p.books} books</span>${mine ? `<span>${mine}</span>` : ""}${p.result ? `<span><b>${esc(p.score || "")}</b></span>` : ""}</div>
+  </div>`;
+}
+function resRow(p) {
+  const t = betTeam(p) || p.home;
+  const col = p.result === "win" ? "var(--grn)" : p.result === "loss" ? "var(--red)" : "var(--mut)";
+  return `<div class="res">${logo(t)}<div class="t"><div>${esc(p.label)} <span style="color:var(--mut);font-weight:600">${fmt(p.odds)}</span></div><small>${ICON[p.sport] || ""} ${esc(p.score || "")} · ${new Date(p.start).toLocaleDateString([], { month: "short", day: "numeric" })}</small></div><div class="u" style="color:${col}">${p.result === "void" ? "void" : u(p.units || 0)}</div></div>`;
+}
+function recCard(title, r) {
+  return `<div class="rec"><div class="hd"><span>${esc(title)}</span><span>${r.n} graded</span></div>
+    <div class="u ${r.units > 0 ? "p" : r.units < 0 ? "n" : ""}">${r.n ? u(r.units) : "–"}</div>
+    <div class="kp"><div><b>${r.w}-${r.l}${r.pu ? "-" + r.pu : ""}</b><small>W-L</small></div><div><b>${r.n ? (r.roi >= 0 ? "+" : "") + (r.roi * 100).toFixed(1) + "%" : "–"}</b><small>ROI</small></div><div><b>${r.n ? pctS(r.hit) : "–"}</b><small>Hit rate</small></div><div><b>${r.clv == null ? "–" : pctS(r.clv)}</b><small>Beat close</small></div></div></div>`;
+}
+
+function render() {
+  const P = DATA.picks || [];
+  const open = (s) => P.filter((p) => !p.result && (s === "All" || p.sport === s));
+  $tabs.innerHTML = ["All", ...SPORTS].map((s) => { const n = open(s).length; return `<button class="tab ${TAB === s ? "on" : ""}" data-t="${esc(s)}">${ICON[s]} ${esc(s)}${n ? `<i>${n}</i>` : ""}</button>`; }).join("");
+  const mine = TAB === "All" ? P : P.filter((p) => p.sport === TAB);
+  const pend = mine.filter((p) => !p.result).sort((a, b) => a.start.localeCompare(b.start));
+  const done = mine.filter((p) => p.result).sort((a, b) => b.start.localeCompare(a.start));
+  let h = recCard(TAB === "All" ? "All sports · since " + (DATA.startedAt ? new Date(DATA.startedAt).toLocaleDateString([], { month: "short", day: "numeric" }) : "launch") : TAB + " record", record(mine));
+  if (TAB === "All") {
+    h += `<div class="grid">${SPORTS.map((s) => { const r = record(P.filter((p) => p.sport === s)); return `<button class="mini" data-t="${esc(s)}"><div class="s">${ICON[s]} ${esc(s)}<small>${open(s).length ? open(s).length + " open" : ""}</small></div><div class="v" style="color:${r.units > 0 ? "var(--grn)" : r.units < 0 ? "var(--red)" : "var(--txt)"}">${r.n ? u(r.units) : "–"}</div><div class="w">${r.w}-${r.l}${r.pu ? "-" + r.pu : ""}${r.n ? " · " + (r.roi >= 0 ? "+" : "") + (r.roi * 100).toFixed(0) + "% ROI" : ""}</div></button>`; }).join("")}</div>`;
+  }
+  // picks grouped by day; the biggest edge of each sport today is the top pick
+  const tops = new Set();
+  for (const s of SPORTS) { const best = pend.filter((p) => p.sport === s).sort((a, b) => b.ev - a.ev)[0]; if (best) tops.add(best.id); }
+  if (!pend.length) h += `<div class="sec"><span>Picks</span></div><div class="empty">No ${TAB === "All" ? "" : esc(TAB) + " "}picks open right now.<br>Picks show up within 18 hours of game time, once a price beats the market by 2.5%+.</div>`;
+  else {
+    const days = [...new Set(pend.map((p) => when(p.start).split(" ").slice(0, -2).join(" ") || "Today"))];
+    for (const d of days) {
+      const list = pend.filter((p) => (when(p.start).split(" ").slice(0, -2).join(" ") || "Today") === d);
+      h += `<div class="sec"><span>${esc(d)}'s picks</span><span>${list.length}</span></div>` + list.sort((a, b) => tops.has(b.id) - tops.has(a.id) || a.start.localeCompare(b.start)).map((p) => pickCard(p, tops.has(p.id))).join("");
+    }
+  }
+  if (done.length) {
+    const show = SHOWALL ? done : done.slice(0, 15);
+    h += `<div class="sec"><span>Results</span><span>${done.length}</span></div>` + show.map(resRow).join("") + (done.length > show.length ? `<button class="more" id="more">Show all ${done.length}</button>` : "");
+  }
+  h += `<div class="foot">Straight bets only, 1 unit each. A pick is logged when one book's price beats the books' no-juice consensus by 2.5%+, and the price is locked when it's logged.<br>"Beat close" = the price was better than the market's final number at game time.</div>`;
+  $main.innerHTML = h;
+  const t = DATA.updatedAt ? new Date(DATA.updatedAt) : null;
+  $upd.textContent = t ? "Updated " + t.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+}
+const $tabs = document.getElementById("tabs"), $main = document.getElementById("main"), $upd = document.getElementById("upd");
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.t) { TAB = b.dataset.t; SHOWALL = false; store.set("tab", TAB); render(); window.scrollTo(0, 0); }
+  else if (b.id === "more") { SHOWALL = true; render(); }
+});
+async function load() {
+  try { const r = await fetch("data/picks.json?" + Date.now(), { cache: "no-store" }); if (r.ok) DATA = await r.json(); } catch {}
+  render();
+}
+load();
+setInterval(() => { if (!document.hidden) load(); }, 5 * 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+</script>
+</body>
+</html>

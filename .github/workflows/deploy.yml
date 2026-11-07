@@ -78,11 +78,20 @@ jobs:
           curl -fsS "$SITE_URL/data/tennis-odds.json" -o public/data/tennis-odds.json || true
           fi
 
-      - name: Build site
+      - name: Make, close and grade picks
         env:
-          PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
-          NEXT_TELEMETRY_DISABLED: 1
-        run: npx next build
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
+        run: npx tsx scripts/picks.ts || echo "Picks step failed; keeping the last published picks"
+
+      - name: Build site (one page + the data it reads)
+        run: |
+          rm -rf out && mkdir -p out/data
+          cp -r site/. out/
+          cp public/*.png public/manifest.webmanifest out/ 2>/dev/null || true
+          cp public/data/picks.json out/data/ 2>/dev/null || curl -fsS "${{ steps.pages.outputs.base_url }}/data/picks.json" -o out/data/picks.json || true
+          # the updater's own files stay published so the next run can carry them over
+          cp -r public/data/. out/data/ 2>/dev/null || true
+          ls -la out out/data
 
       - uses: actions/upload-pages-artifact@v3
         with:
