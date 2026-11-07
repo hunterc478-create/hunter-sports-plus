@@ -183,14 +183,14 @@ async function buildWhy(p: Pick): Promise<string[]> {
     const evs: J[] = blk?.events ?? [];
     if (!evs.length) return null;
     const pf: number[] = [], pa: number[] = [];
-    let w = 0, l = 0;
+    let w = 0, l = 0, d = 0;
     for (const e of evs) {
       const home = String(e.homeTeamId) === tid;
       const a = Number(home ? e.homeTeamScore : e.awayTeamScore), b = Number(home ? e.awayTeamScore : e.homeTeamScore);
       if (Number.isFinite(a) && Number.isFinite(b)) { pf.push(a); pa.push(b); }
-      if (/^w/i.test(e.gameResult || "")) w++; else if (/^l/i.test(e.gameResult || "")) l++;
+      if (/^w/i.test(e.gameResult || "")) w++; else if (/^l/i.test(e.gameResult || "")) l++; else if (/^[dt]/i.test(e.gameResult || "")) d++;
     }
-    return { w, l, n: evs.length, pf: avg(pf), pa: avg(pa) };
+    return { w, l, d, n: evs.length, pf: avg(pf), pa: avg(pa), txt: d ? `${w}W-${d}D-${l}L` : `${w}-${l}` };
   };
   const rec = (ha: "home" | "away", type: RegExp) => (side(ha)?.record ?? []).find((r: J) => type.test(r.type || r.name || ""))?.summary;
   const outs = (ha: "home" | "away") => {
@@ -202,8 +202,8 @@ async function buildWhy(p: Pick): Promise<string[]> {
 
   if (ours && theirs) {
     const me = l5(ours), opp = l5(theirs);
-    if (me && Number.isFinite(me.pf)) out.push(`${tname(ours)} ${me.w >= 3 ? "are rolling:" : "are"} ${me.w}-${me.l} in their last ${me.n}, scoring ${f1(me.pf)} and allowing ${f1(me.pa)} ${unit} a game`);
-    if (opp && Number.isFinite(opp.pa)) out.push(`${tname(theirs)} ${opp.l >= 3 ? "are struggling:" : "are"} ${opp.w}-${opp.l} in their last ${opp.n}, giving up ${f1(opp.pa)} ${unit} a game`);
+    if (me && Number.isFinite(me.pf)) out.push(`${tname(ours)} ${me.w >= 4 ? "are rolling:" : "are"} ${me.txt} in their last ${me.n}, scoring ${f1(me.pf)} and allowing ${f1(me.pa)} ${unit} a game`);
+    if (opp && Number.isFinite(opp.pa)) out.push(`${tname(theirs)} ${opp.l >= 3 || opp.w <= 1 ? "are struggling:" : "are"} ${opp.txt} in their last ${opp.n}, giving up ${f1(opp.pa)} ${unit} a game`);
     const venueMe = rec(ours, ours === "home" ? /^home/i : /^(road|away)/i), venueOpp = rec(theirs, theirs === "home" ? /^home/i : /^(road|away)/i);
     if (venueMe || venueOpp) out.push([venueMe && `${tname(ours)} are ${venueMe} ${ours === "home" ? "at home" : "on the road"}`, venueOpp && `${tname(theirs)} are ${venueOpp} ${theirs === "home" ? "at home" : "on the road"}`].filter(Boolean).join("; "));
     const o = outs(theirs), m = outs(ours);
