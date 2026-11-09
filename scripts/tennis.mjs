@@ -224,7 +224,7 @@ async function main() {
       const m0 = lines[0];
       const start = m0.occurrence_datetime || m0.expected_expiration_time;
       if (!start || new Date(start).getTime() <= now) { tSkip.started++; continue; }
-      const names = (String(m0.rules_primary || "").match(/in the (.+?) vs (.+?) professional tennis match/) || []).slice(1);
+      const names = (String(m0.rules_primary || "").match(/above [\d.]+ in the (.+?) vs (.+?) professional tennis match/) || []).slice(1);
       if (names.length !== 2) { tSkip.names++; continue; }
       const [nA, nB] = names, pa = R[tour].get(key(nA)), pb = R[tour].get(key(nB));
       if (!pa || !pb) { tSkip.unrated++; continue; }
