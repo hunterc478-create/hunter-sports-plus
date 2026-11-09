@@ -145,6 +145,7 @@ async function main() {
   const R = rate(hist.results);
   console.log(`tennis: history ${hist.results.length} matches (+${added} new) · rated ${R.ATP.size} ATP / ${R.WTA.size} WTA players · sources ${JSON.stringify(hist.results.reduce((a, r) => ((a[r.src] = (a[r.src] || 0) + 1), a), {}))}`);
 
+  for (const tour of ["ATP", "WTA"]) console.log(`tennis: top ${tour} ratings · ` + [...R[tour].values()].filter((p) => p.n >= 20).sort((a, b) => b.r - a.r).slice(0, 10).map((p) => `${p.name} ${Math.round(p.r)} (${p.n})`).join(", "));
   // open matches on Kalshi
   const cands = [], results = {};
   let open = 0, rated = 0;
@@ -163,13 +164,14 @@ async function main() {
       const ask = (m) => Number(m.yes_ask_dollars), bid = (m) => Number(m.yes_bid_dollars);
       if (!(ask(A) > 0 && ask(B) > 0 && ask(A) < 1 && ask(B) < 1)) continue;
       const pa = R[tour].get(key(A.yes_sub_title)), pb = R[tour].get(key(B.yes_sub_title));
-      if (!pa || !pb || pa.n < 8 || pb.n < 8) continue;
+      if (!pa || !pb || pa.n < 15 || pb.n < 15) continue;
       rated++;
       // market's chance: midpoint of each side, then normalized
       const midA = (ask(A) + (bid(A) || ask(A))) / 2, midB = (ask(B) + (bid(B) || ask(B))) / 2;
       const mktA = midA / (midA + midB);
       const eloA = 1 / (1 + 10 ** ((pb.r - pa.r) / 400));
-      const pA = 0.6 * mktA + 0.4 * eloA;
+      // the ratings can move the market by 5 points at most (big disagreements are usually the model being wrong)
+      const pA = mktA + Math.max(-0.05, Math.min(0.05, 0.4 * (eloA - mktA)));
       const tourney = tourneyOf(A) || (CHALL.test(s) ? "Challenger" : tour);
       for (const [me, op, p, m, rme, rop] of [[A, B, pA, A, pa, pb], [B, A, 1 - pA, B, pb, pa]]) {
         const a = ask(m), cost = a + fee(a);
@@ -181,7 +183,7 @@ async function main() {
           `Rated ${Math.round(rme.r)} vs ${Math.round(rop.r)}: the ratings give ${shortName(me.yes_sub_title)} ${Math.round(100 * (me === A ? eloA : 1 - eloA))}% to win`,
           `${shortName(me.yes_sub_title)} won ${f(rme)} of his/her last ${rme.form.length}; ${shortName(op.yes_sub_title)} won ${f(rop)} of ${rop.form.length}`,
           h ? `Head to head: ${shortName(me.yes_sub_title)} ${h[0]}-${h[1]}` : null,
-          `Kalshi ${Math.round(a * 100)}¢ (${amer(a) > 0 ? "+" : ""}${amer(a)}) vs our ${Math.round(p * 100)}% (market ${Math.round(100 * (me === A ? mktA : 1 - mktA))}% blended with the ratings)`,
+          `Kalshi ${Math.round(a * 100)}¢ (${amer(a) > 0 ? "+" : ""}${amer(a)}); the market says ${Math.round(100 * (me === A ? mktA : 1 - mktA))}%, the ratings move it to ${Math.round(p * 100)}%`,
         ].filter(Boolean).map((x) => x.replace("his/her", tour === "WTA" ? "her" : "his"));
         const home = { name: A.yes_sub_title, short: shortName(A.yes_sub_title) }, away = { name: B.yes_sub_title, short: shortName(B.yes_sub_title) };
         cands.push({
