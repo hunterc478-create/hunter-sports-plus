@@ -183,7 +183,7 @@ async function main() {
       for (const [me, op, p, m, rme, rop] of [[A, B, pA, A, pa, pb], [B, A, 1 - pA, B, pb, pa]]) {
         const a = ask(m), cost = a + fee(a);
         const ev2 = p - cost, edge = ev2 / cost;
-        if (edge < 0.03 || a < 0.25 || a > 0.8) continue;
+        if (edge < 0.03 || a < 0.25 || cost > 0.636) continue;      // nothing worse than -175
         const f = (x) => x.form.reduce((s2, v) => s2 + v, 0);
         const h = rme.h2h[key(op.yes_sub_title)];
         const why = [
@@ -243,8 +243,8 @@ async function main() {
         const model = 1 - normCdf((L - mu) / sd);
         const pO = mkt + Math.max(-0.05, Math.min(0.05, 0.4 * (model - mkt)));
         for (const [side, a, p] of [["over", ya, pO], ["under", na, 1 - pO]]) {
-          if (a < 0.25 || a > 0.8) continue;
           const cost = a + fee(a), edge = p / cost - 1;
+          if (a < 0.4 || cost > 0.6) continue;                       // totals: lines near even money only (-150 to +150)
           if (edge >= 0.03 && (!best || edge > best.edge)) best = { side, L, a, p, edge, model, mkt, cost };
         }
       }
