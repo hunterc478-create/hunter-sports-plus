@@ -289,7 +289,7 @@ async function main() {
   for (const c of cands) {
     const sport = SPORT[c.league];
     const hours = (new Date(c.start).getTime() - now) / 3600_000;
-    if (hours > LOG_WINDOW_H || games.has(c.matchupId)) continue;
+    if (hours > (sport === "Tennis" ? 40 : LOG_WINDOW_H) || games.has(c.matchupId)) continue;   // tennis: as soon as Kalshi posts (usually the day before)
     const k = capKey(sport, c.market) + "|" + dayOf(c.start);
     if ((perDay.get(k) ?? 0) >= (CAP[capKey(sport, c.market)] ?? 4)) continue;
     const id = `${c.matchupId}:${c.market}:${c.side}:${c.line ?? ""}`;

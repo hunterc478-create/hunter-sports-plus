@@ -160,7 +160,7 @@ function render() {
   // picks grouped by day; the biggest edge of each sport today is the top pick
   const tops = new Set();
   for (const s of SPORTS) { const best = pend.filter((p) => p.sport === s).sort((a, b) => b.ev - a.ev)[0]; if (best) tops.add(best.id); }
-  if (!pend.length) h += `<div class="sec"><span>Picks</span></div><div class="empty">No ${TAB === "All" ? "" : esc(TAB) + " "}picks open right now.<br>Picks show up within 18 hours of game time, once a price beats the market by 2.5%+.</div>`;
+  if (!pend.length) h += `<div class="sec"><span>Picks</span></div><div class="empty">No ${TAB === "All" ? "" : esc(TAB) + " "}picks open right now.<br>Picks show up within 18 hours of game time (tennis as soon as Kalshi posts the match), once a price beats the market by 2.5%+.</div>`;
   else {
     const days = [...new Set(pend.map((p) => when(p.start).split(" ").slice(0, -2).join(" ") || "Today"))];
     for (const d of days) {
