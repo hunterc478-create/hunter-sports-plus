@@ -1,0 +1,29 @@
+name: NBA peek (temporary)
+on: workflow_dispatch
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          python3 - <<'PY'
+          import json, urllib.request, urllib.parse
+          def get(u):
+            try: return json.load(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent":"x"}), timeout=30))
+            except Exception as e: return None
+          names = ["Dillon Brooks","Jalen Johnson","Stephen Curry","Duncan Robinson","De'Aaron Fox","Donovan Mitchell","Dylan Harper","Alperen Sengun","Dyson Daniels","James Harden","Ty Jerome","Fred VanVleet","Cameron Boozer","Kevin Durant","Cooper Flagg","Stephon Castle"]
+          sb = get("https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20261109")
+          teams_tonight = {}
+          for e in (sb or {}).get("events", []):
+            c = e["competitions"][0]; cs = c["competitors"]
+            h = [x for x in cs if x["homeAway"]=="home"][0]; a = [x for x in cs if x["homeAway"]=="away"][0]
+            odds = (c.get("odds") or [{}])[0]
+            print("GAME", a["team"]["abbreviation"], "@", h["team"]["abbreviation"], e["date"], "|", odds.get("details"), "O/U", odds.get("overUnder"))
+            teams_tonight[a["team"]["id"]] = (a["team"]["abbreviation"], e["id"]); teams_tonight[h["team"]["id"]] = (h["team"]["abbreviation"], e["id"])
+            s = get(f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event={e['id']}")
+            for blk in (s or {}).get("injuries", []):
+              for i in blk.get("injuries", []):
+                print("  INJ", blk.get("team",{}).get("abbreviation"), i.get("athlete",{}).get("displayName"), "|", i.get("status"), "|", (i.get("details") or {}).get("type",""))
+          # where each sheet player plays, and recent game log
+          for n in names:
+            r = get(f"https://site.web.api.espn.com/apis/common/v3/search?query={urllib.parse.quote(n)}&limit=3&type=player&sport=basketball&league=nba") if False else None
+          PY
