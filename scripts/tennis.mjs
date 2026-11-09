@@ -214,7 +214,7 @@ async function main() {
   const normCdf = (z) => { const t = 1 / (1 + 0.2316419 * Math.abs(z)); const d = 0.3989423 * Math.exp(-z * z / 2); const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274)))); return z > 0 ? 1 - p : p; };
   console.log(`tennis: total-games model · ` + Object.entries(B).sort().map(([k, v]) => `${k}: ${v.mu.toFixed(1)}±${v.sd.toFixed(1)} (${v.n})`).join(" · "));
   const totals = {};
-  let tCands = 0;
+  let tCands = 0; const tSkip = { started: 0, names: 0, unrated: 0, thin: 0, priced: 0, noEdge: 0 }; let bestSeen = -1;
   for (const [s, tour] of [["KXATPGTOTAL", "ATP"], ["KXWTAGTOTAL", "WTA"]]) {
     for (const m of await kalshiMarkets(s, "settled", Math.floor(now / 1000) - 6 * 86400)) if (m.result) totals[`${m.event_ticker}|${m.floor_strike}`] = m.result;
     const ms = await kalshiMarkets(s, "open");
@@ -223,13 +223,14 @@ async function main() {
     for (const [t, lines] of ev) {
       const m0 = lines[0];
       const start = m0.occurrence_datetime || m0.expected_expiration_time;
-      if (!start || new Date(start).getTime() <= now) continue;
+      if (!start || new Date(start).getTime() <= now) { tSkip.started++; continue; }
       const names = (String(m0.rules_primary || "").match(/in the (.+?) vs (.+?) professional tennis match/) || []).slice(1);
-      if (names.length !== 2) continue;
+      if (names.length !== 2) { tSkip.names++; continue; }
       const [nA, nB] = names, pa = R[tour].get(key(nA)), pb = R[tour].get(key(nB));
-      if (!pa || !pb) continue;
+      if (!pa || !pb) { tSkip.unrated++; continue; }
       const ra = resid(pa, tour), rb = resid(pb, tour);
-      if (ra.n < 8 || rb.n < 8) continue;
+      if (ra.n < 8 || rb.n < 8) { tSkip.thin++; continue; }
+      tSkip.priced++;
       const eloA = 1 / (1 + 10 ** ((pb.r - pa.r) / 400)), pre = Math.min(eloA, 1 - eloA);
       const bk = bucketOf(tour, pre); if (!bk || bk.n < 50) continue;
       const mu = bk.mu + 0.5 * (ra.r + rb.r), sd = bk.sd;
@@ -247,7 +248,8 @@ async function main() {
           if (edge >= 0.03 && (!best || edge > best.edge)) best = { side, L, a, p, edge, model, mkt, cost };
         }
       }
-      if (!best) continue;
+      for (const m of lines) { const L = Number(m.floor_strike); const pm = 1 - normCdf((L - mu) / sd); bestSeen = Math.max(bestSeen, Math.abs(pm - Number(m.yes_ask_dollars))); }
+      if (!best) { tSkip.noEdge++; continue; }
       const S = best.side === "over" ? "Over" : "Under";
       const hits = h2h.filter((x) => (best.side === "over" ? x.g > best.L : x.g < best.L)).length;
       const why = [
@@ -262,6 +264,7 @@ async function main() {
       tCands++;
     }
   }
+  console.log(`tennis: totals checked ${JSON.stringify(tSkip)} · biggest model-vs-price gap ${(bestSeen * 100).toFixed(0)} pts`);
   console.log(`tennis: ${tCands} total-games picks with 3%+ edge · ${Object.keys(totals).length} settled total lines for grading`);
   fs.writeFileSync(path.join(DATA, "tennis-cands.json"), JSON.stringify({ updatedAt: new Date(now).toISOString(), cands, results, totals }));
   console.log(`tennis: ${open} open Kalshi matches · ${rated} with both players rated · ${cands.length} picks with 3%+ edge · ${Object.keys(results).length} recent results for grading`);
