@@ -1,0 +1,32 @@
+name: Tennis peek (temporary)
+on: workflow_dispatch
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          python3 - <<'PY'
+          import json, urllib.request
+          def get(u):
+            try: return json.load(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent":"sports-plus"}), timeout=30))
+            except Exception as e: print("ERR", u, e); return None
+          s = get("https://api.elections.kalshi.com/trade-api/v2/series?category=Sports&limit=1000")
+          ser = [x for x in (s or {}).get("series", []) if any(k in (x.get("ticker","")+x.get("title","")).upper() for k in ("ATP","WTA","TENNIS","CHALL"))]
+          print("tennis series:", [(x["ticker"], x.get("title")) for x in ser][:40])
+          for x in ser[:8]:
+            m = get(f"https://api.elections.kalshi.com/trade-api/v2/markets?series_ticker={x['ticker']}&status=open&limit=200")
+            ms = (m or {}).get("markets", [])
+            print(x["ticker"], "open markets:", len(ms))
+            for mk in ms[:3]: print("   ", mk.get("ticker"), "|", mk.get("title"), "|", mk.get("yes_sub_title"), "| yes_ask", mk.get("yes_ask"), "yes_bid", mk.get("yes_bid"), "| event", mk.get("event_ticker"), "| close", mk.get("close_time"), "| vol", mk.get("volume"))
+          d = get("https://site.api.espn.com/apis/site/v2/sports/tennis/atp/scoreboard?dates=20261105")
+          ev = (d or {}).get("events", [])
+          print("ESPN ATP events on 11/05:", [(e.get("name"), e.get("id")) for e in ev][:10])
+          if ev:
+            e = ev[0]; print("event keys:", list(e.keys()))
+            g = (e.get("groupings") or [{}])[0]; print("grouping:", g.get("grouping",{}).get("displayName"), "n comps", len(g.get("competitions",[])))
+            c = (g.get("competitions") or [{}])[0]
+            print("comp keys:", list(c.keys())); print("comp sample:", json.dumps({k:c.get(k) for k in ("id","date","status","venue","type","round","format")})[:900])
+            print("competitor:", json.dumps(c.get("competitors",[{}])[0])[:900])
+          d2 = get("https://site.api.espn.com/apis/site/v2/sports/tennis/atp/scoreboard?dates=20260601")
+          print("ESPN 2026-06-01 events:", [(e.get("name")) for e in (d2 or {}).get("events", [])][:10])
+          PY
