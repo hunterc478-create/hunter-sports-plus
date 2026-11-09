@@ -39,7 +39,8 @@ const SPORT: Record<string, string> = {
   EPL: "Soccer", LALIGA: "Soccer", SERIEA: "Soccer", BUNDESLIGA: "Soccer", LIGUE1: "Soccer", MLS: "Soccer", UCL: "Soccer",
   ATP: "Tennis", WTA: "Tennis",
 };
-const CAP: Record<string, number> = { NBA: 5, NHL: 5, "College Hoops": 6, Soccer: 6, Tennis: 5, WNBA: 3, MLB: 5 };
+const CAP: Record<string, number> = { NBA: 5, NHL: 5, "College Hoops": 6, Soccer: 6, Tennis: 6, "Tennis totals": 4, WNBA: 3, MLB: 5 };
+const capKey = (sport: string, market: string) => (sport === "Tennis" && market === "total" ? "Tennis totals" : sport);
 const MIN_EV = 0.025, MAX_GAP = 0.06, LOG_WINDOW_H = 18;
 const OK_BOOK = /fanduel|draft ?kings|betmgm|betrivers|fanatics|caesars|hard rock|bet365|espn ?bet|kalshi|novig|fliff/i;
 const MY_BOOK = /fanduel|kalshi|novig|fliff/i;
@@ -282,15 +283,15 @@ async function main() {
 
   // 3) log new picks: one per game, inside the window, capped per sport per day
   const perDay = new Map<string, number>();
-  for (const p of picks) { const k = p.sport + "|" + dayOf(p.start); perDay.set(k, (perDay.get(k) ?? 0) + 1); }
+  for (const p of picks) { const k = capKey(p.sport, p.market) + "|" + dayOf(p.start); perDay.set(k, (perDay.get(k) ?? 0) + 1); }
   const games = new Set(picks.map((p) => p.matchupId));
   let added = 0;
   for (const c of cands) {
     const sport = SPORT[c.league];
     const hours = (new Date(c.start).getTime() - now) / 3600_000;
     if (hours > LOG_WINDOW_H || games.has(c.matchupId)) continue;
-    const k = sport + "|" + dayOf(c.start);
-    if ((perDay.get(k) ?? 0) >= (CAP[sport] ?? 4)) continue;
+    const k = capKey(sport, c.market) + "|" + dayOf(c.start);
+    if ((perDay.get(k) ?? 0) >= (CAP[capKey(sport, c.market)] ?? 4)) continue;
     const id = `${c.matchupId}:${c.market}:${c.side}:${c.line ?? ""}`;
     if (byId.has(id)) continue;
     const p: Pick = { id, sport, ...c, fair: r3(c.fair), ev: r3(c.ev), loggedAt: new Date(now).toISOString(), closeFair: r3(c.fair), closeOdds: c.odds };
