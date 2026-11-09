@@ -265,7 +265,8 @@ async function main() {
   const results = readJson<Record<string, { home: number; away: number }>>(path.join(DATA, "results.json")) ?? {};
   let prev = readJson<{ picks: Pick[] }>(path.join(DATA, "picks.json"));
   if (!prev) prev = await getJson<{ picks: Pick[] }>(`${SITE}/data/picks.json`);
-  const picks: Pick[] = prev?.picks ?? [];
+  // the first tennis-model run (before the tour fix) logged picks from bad ratings: drop them
+  const picks: Pick[] = (prev?.picks ?? []).filter((p) => !(p.matchupId.startsWith("KX") && p.loggedAt < "2026-11-09T06:08"));
   const byId = new Map(picks.map((p) => [p.id, p]));
 
   // 1) candidates, best first
