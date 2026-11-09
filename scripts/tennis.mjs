@@ -1,7 +1,7 @@
 /**
  * Tennis picks from Kalshi match markets + a player rating model (Elo).
  *
- *   history  public/data/tennis-results-v2.json   every finished match we know: Kalshi settled match markets (ATP, WTA,
+ *   history  public/data/tennis-results-v3.json   every finished match we know: Kalshi settled match markets (ATP, WTA,
  *                                              Challengers), ESPN main-tour results, and Jeff Sackmann's files when
  *                                              they exist. Carried over between runs; only new results are fetched.
  *   out      public/data/tennis-cands.json     { updatedAt, cands: [...], results: { [eventTicker]: winnerName } }
@@ -72,7 +72,10 @@ async function espnWeeks(tour, fromIso) {
       if (!W?.athlete?.displayName || !Lz?.athlete?.displayName) continue;
       const sets = (W.linescores || []).length;
       if (!sets) continue;                                  // walkovers
-      res.push({ id: "e:" + c.id, d: (c.date || "").slice(0, 10), w: W.athlete.displayName, l: Lz.athlete.displayName, tour: gtour, ch: 0, src: "espn" });
+      const games = [...(W.linescores || []), ...(Lz.linescores || [])].reduce((t, x) => t + (Number(x.value) || 0), 0);
+      const bo = Number(c.format?.regulation?.periods) === 5 ? 5 : 3;
+      const done = /final/i.test(c.status?.type?.description || "") && !/retire|walkover|default/i.test(JSON.stringify(c.notes || ""));
+      res.push({ id: "e:" + c.id, d: (c.date || "").slice(0, 10), w: W.athlete.displayName, l: Lz.athlete.displayName, tour: gtour, ch: 0, src: "espn", g: done ? games : undefined, bo });
     }
   }
   return res;
@@ -107,6 +110,7 @@ function rate(results) {
     const T = R[m.tour]; if (!T) continue;
     const pw = T.get(key(m.w)) || { r: 1500, n: 0, form: [], name: m.w, h2h: {} }, pl = T.get(key(m.l)) || { r: 1500, n: 0, form: [], name: m.l, h2h: {} };
     const ew = 1 / (1 + 10 ** ((pl.r - pw.r) / 400));
+    if (m.g) { m.pre = Math.min(ew, 1 - ew); (pw.gm ||= []).unshift(m); (pl.gm ||= []).unshift(m); if (pw.gm.length > 25) pw.gm.length = 25; if (pl.gm.length > 25) pl.gm.length = 25; }
     const kw = 250 / (pw.n + 5) ** 0.4, kl = 250 / (pl.n + 5) ** 0.4;
     pw.r += kw * (1 - ew); pl.r -= kl * (1 - ew);
     pw.n++; pl.n++;
@@ -121,7 +125,7 @@ function rate(results) {
 /* ---------------- main ---------------- */
 async function main() {
   const now = Date.now();
-  let hist = read("tennis-results-v2.json") || (await get(`${SITE}/data/tennis-results-v2.json`)) || { results: [], kalshiUntil: 0, espnUntil: null };
+  let hist = read("tennis-results-v3.json") || (await get(`${SITE}/data/tennis-results-v3.json`)) || { results: [], kalshiUntil: 0, espnUntil: null };
   const have = new Set(hist.results.map((r) => r.id));
   const add = (rs) => { let n = 0; for (const r of rs) if (r.d && !have.has(r.id)) { have.add(r.id); hist.results.push(r); n++; } return n; };
   const firstRun = hist.results.length === 0;
@@ -142,7 +146,7 @@ async function main() {
   const cut = new Date(now - 550 * 86400_000).toISOString().slice(0, 10);
   hist.results = hist.results.filter((r) => r.d >= cut);
   fs.mkdirSync(DATA, { recursive: true });
-  fs.writeFileSync(path.join(DATA, "tennis-results-v2.json"), JSON.stringify(hist));
+  fs.writeFileSync(path.join(DATA, "tennis-results-v3.json"), JSON.stringify(hist));
 
   const R = rate(hist.results);
   console.log(`tennis: history ${hist.results.length} matches (+${added} new) · rated ${R.ATP.size} ATP / ${R.WTA.size} WTA players · sources ${JSON.stringify(hist.results.reduce((a, r) => ((a[r.src] = (a[r.src] || 0) + 1), a), {}))}`);
@@ -195,7 +199,70 @@ async function main() {
       }
     }
   }
-  fs.writeFileSync(path.join(DATA, "tennis-cands.json"), JSON.stringify({ updatedAt: new Date(now).toISOString(), cands, results }));
+  /* ---------- total games ---------- */
+  // how many games a match goes, by how close it is (pre-match chance of the underdog), per tour, best of 3
+  const buckets = {};
+  for (const m of hist.results) if (m.g && m.pre != null && m.bo === 3) {
+    const b = `${m.tour}|${Math.min(4, Math.floor(m.pre / 0.1))}`;
+    (buckets[b] ||= []).push(m.g);
+  }
+  const stat = (xs) => { const mu = xs.reduce((a, b) => a + b, 0) / xs.length; return { mu, sd: Math.sqrt(xs.reduce((a, b) => a + (b - mu) ** 2, 0) / xs.length), n: xs.length }; };
+  const B = Object.fromEntries(Object.entries(buckets).map(([k, v]) => [k, stat(v)]));
+  const bucketOf = (tour, pre) => B[`${tour}|${Math.min(4, Math.floor(pre / 0.1))}`];
+  const resid = (pl, tour) => { const xs = (pl.gm || []).filter((m) => m.bo === 3).map((m) => m.g - (bucketOf(tour, m.pre)?.mu ?? m.g)); return { r: xs.length ? (xs.reduce((a, b) => a + b, 0) / xs.length) * (xs.length / (xs.length + 10)) : 0, n: xs.length, avg: xs.length ? (pl.gm.filter((m) => m.bo === 3).reduce((a, m) => a + m.g, 0) / xs.length) : null }; };
+  const normCdf = (z) => { const t = 1 / (1 + 0.2316419 * Math.abs(z)); const d = 0.3989423 * Math.exp(-z * z / 2); const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274)))); return z > 0 ? 1 - p : p; };
+  console.log(`tennis: total-games model · ` + Object.entries(B).sort().map(([k, v]) => `${k}: ${v.mu.toFixed(1)}±${v.sd.toFixed(1)} (${v.n})`).join(" · "));
+  const totals = {};
+  let tCands = 0;
+  for (const [s, tour] of [["KXATPGTOTAL", "ATP"], ["KXWTAGTOTAL", "WTA"]]) {
+    for (const m of await kalshiMarkets(s, "settled", Math.floor(now / 1000) - 6 * 86400)) if (m.result) totals[`${m.event_ticker}|${m.floor_strike}`] = m.result;
+    const ms = await kalshiMarkets(s, "open");
+    const ev = new Map();
+    for (const m of ms) { const a = ev.get(m.event_ticker) || []; a.push(m); ev.set(m.event_ticker, a); }
+    for (const [t, lines] of ev) {
+      const m0 = lines[0];
+      const start = m0.occurrence_datetime || m0.expected_expiration_time;
+      if (!start || new Date(start).getTime() <= now) continue;
+      const names = (String(m0.rules_primary || "").match(/in the (.+?) vs (.+?) professional tennis match/) || []).slice(1);
+      if (names.length !== 2) continue;
+      const [nA, nB] = names, pa = R[tour].get(key(nA)), pb = R[tour].get(key(nB));
+      if (!pa || !pb) continue;
+      const ra = resid(pa, tour), rb = resid(pb, tour);
+      if (ra.n < 8 || rb.n < 8) continue;
+      const eloA = 1 / (1 + 10 ** ((pb.r - pa.r) / 400)), pre = Math.min(eloA, 1 - eloA);
+      const bk = bucketOf(tour, pre); if (!bk || bk.n < 50) continue;
+      const mu = bk.mu + 0.5 * (ra.r + rb.r), sd = bk.sd;
+      const h2h = hist.results.filter((x) => x.g && x.tour === tour && [key(x.w), key(x.l)].sort().join() === [key(nA), key(nB)].sort().join());
+      let best = null;
+      for (const m of lines) {
+        const L = Number(m.floor_strike), ya = Number(m.yes_ask_dollars), na = Number(m.no_ask_dollars), yb = Number(m.yes_bid_dollars), nb = Number(m.no_bid_dollars);
+        if (!Number.isFinite(L) || !(ya > 0 && na > 0)) continue;
+        const mkt = ((ya + (yb || ya)) / 2) / (((ya + (yb || ya)) / 2) + ((na + (nb || na)) / 2));
+        const model = 1 - normCdf((L - mu) / sd);
+        const pO = mkt + Math.max(-0.05, Math.min(0.05, 0.4 * (model - mkt)));
+        for (const [side, a, p] of [["over", ya, pO], ["under", na, 1 - pO]]) {
+          if (a < 0.25 || a > 0.8) continue;
+          const cost = a + fee(a), edge = p / cost - 1;
+          if (edge >= 0.03 && (!best || edge > best.edge)) best = { side, L, a, p, edge, model, mkt, cost };
+        }
+      }
+      if (!best) continue;
+      const S = best.side === "over" ? "Over" : "Under";
+      const hits = h2h.filter((x) => (best.side === "over" ? x.g > best.L : x.g < best.L)).length;
+      const why = [
+        `${shortName(nA)}'s matches average ${ra.avg.toFixed(1)} games; ${shortName(nB)}'s average ${rb.avg.toFixed(1)}`,
+        `Ratings make it ${Math.round(100 * Math.max(eloA, 1 - eloA))}/${Math.round(100 * pre)}: ${pre >= 0.4 ? "a close matchup, which runs long" : pre <= 0.25 ? "a mismatch, which usually ends fast" : "a moderate favorite"} (about ${bk.mu.toFixed(1)} games for matchups like this)`,
+        `Model projects ${mu.toFixed(1)} games vs this ${best.L} line`,
+        h2h.length ? `Head to head: ${hits} of ${h2h.length} went ${best.side} ${best.L}` : null,
+        `Kalshi ${Math.round(best.a * 100)}¢ (${amer(best.a) > 0 ? "+" : ""}${amer(best.a)}); market says ${Math.round(100 * (best.side === "over" ? best.mkt : 1 - best.mkt))}%, the model moves it to ${Math.round(100 * best.p)}%${lines.length > 1 ? ` · best of ${lines.length} lines` : ""}`,
+      ].filter(Boolean);
+      cands.push({ matchupId: t, league: tour, market: "total", side: best.side, line: best.L, label: `${S} ${best.L} games`,
+        home: { name: nA, short: shortName(nA) }, away: { name: nB, short: shortName(nB) }, start, book: "Kalshi", odds: amer(best.cost), fair: r3(best.p), ev: r3(best.edge), books: 1, tourney: tourneyOf(m0), why });
+      tCands++;
+    }
+  }
+  console.log(`tennis: ${tCands} total-games picks with 3%+ edge · ${Object.keys(totals).length} settled total lines for grading`);
+  fs.writeFileSync(path.join(DATA, "tennis-cands.json"), JSON.stringify({ updatedAt: new Date(now).toISOString(), cands, results, totals }));
   console.log(`tennis: ${open} open Kalshi matches · ${rated} with both players rated · ${cands.length} picks with 3%+ edge · ${Object.keys(results).length} recent results for grading`);
   for (const c of cands.sort((a, b) => b.ev - a.ev).slice(0, 3)) console.log(`  ${c.tourney}: ${c.label} ${c.odds} · ${Math.round(c.fair * 100)}% · edge ${(c.ev * 100).toFixed(1)}%\n    - ${c.why.join("\n    - ")}`);
 }

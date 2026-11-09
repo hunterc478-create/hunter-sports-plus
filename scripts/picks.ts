@@ -260,7 +260,7 @@ async function main() {
   if (!bundle) { console.log("picks: no board, nothing to do"); return; }
   const tennisCache = readJson<J>(path.join(DATA, "tennis-odds.json"));
   // Kalshi tennis matches priced by the rating model (scripts/tennis.mjs)
-  const kt = readJson<{ cands: Cand[]; results: Record<string, string> }>(path.join(DATA, "tennis-cands.json"));
+  const kt = readJson<{ cands: Cand[]; results: Record<string, string>; totals?: Record<string, string> }>(path.join(DATA, "tennis-cands.json"));
   const tennisK = (kt?.cands ?? []).filter((c) => new Date(c.start).getTime() > now);
   const results = readJson<Record<string, { home: number; away: number }>>(path.join(DATA, "results.json")) ?? {};
   let prev = readJson<{ picks: Pick[] }>(path.join(DATA, "picks.json"));
@@ -313,8 +313,13 @@ async function main() {
     if (p.result) continue;
     const started = new Date(p.start).getTime();
     if (p.sport === "Tennis" && p.matchupId.startsWith("KX")) {
-      const w = kt?.results?.[p.matchupId];
-      if (w) { const won = nm(w) === nm(p.side === "home" ? p.home.name : p.away.name); p.result = won ? "win" : "loss"; p.score = `${w} won`; }
+      if (p.market === "total") {
+        const r = kt?.totals?.[`${p.matchupId}|${p.line}`];
+        if (r === "yes" || r === "no") { const over = r === "yes"; p.result = (p.side === "over") === over ? "win" : "loss"; p.score = `${over ? "Over" : "Under"} ${p.line} games`; }
+      } else {
+        const w = kt?.results?.[p.matchupId];
+        if (w) { const won = nm(w) === nm(p.side === "home" ? p.home.name : p.away.name); p.result = won ? "win" : "loss"; p.score = `${w} won`; }
+      }
     } else if (p.sport === "Tennis" && p.market === "total") {
       const g = await tennisGames(p);
       if (g != null) { p.result = gradeScore(p, g, 0); p.score = `${g} games`; }
