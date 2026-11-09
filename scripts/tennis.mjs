@@ -1,7 +1,7 @@
 /**
  * Tennis picks from Kalshi match markets + a player rating model (Elo).
  *
- *   history  public/data/tennis-results-v3.json   every finished match we know: Kalshi settled match markets (ATP, WTA,
+ *   history  public/data/tennis-results-v4.json   every finished match we know: Kalshi settled match markets (ATP, WTA,
  *                                              Challengers), ESPN main-tour results, and Jeff Sackmann's files when
  *                                              they exist. Carried over between runs; only new results are fetched.
  *   out      public/data/tennis-cands.json     { updatedAt, cands: [...], results: { [eventTicker]: winnerName } }
@@ -73,7 +73,8 @@ async function espnWeeks(tour, fromIso) {
       const sets = (W.linescores || []).length;
       if (!sets) continue;                                  // walkovers
       const games = [...(W.linescores || []), ...(Lz.linescores || [])].reduce((t, x) => t + (Number(x.value) || 0), 0);
-      const bo = Number(c.format?.regulation?.periods) === 5 ? 5 : 3;
+      // ESPN says 5 for every ATP match; only men's Grand Slam main draws are best of 5
+      const bo = gtour === "ATP" && /australian open|roland garros|french open|wimbledon|us open/i.test(e.name || "") && !/qualif/i.test(c.round?.displayName || "") ? 5 : 3;
       const done = /final/i.test(c.status?.type?.description || "") && !/retire|walkover|default/i.test(JSON.stringify(c.notes || ""));
       res.push({ id: "e:" + c.id, d: (c.date || "").slice(0, 10), w: W.athlete.displayName, l: Lz.athlete.displayName, tour: gtour, ch: 0, src: "espn", g: done ? games : undefined, bo });
     }
@@ -125,7 +126,7 @@ function rate(results) {
 /* ---------------- main ---------------- */
 async function main() {
   const now = Date.now();
-  let hist = read("tennis-results-v3.json") || (await get(`${SITE}/data/tennis-results-v3.json`)) || { results: [], kalshiUntil: 0, espnUntil: null };
+  let hist = read("tennis-results-v4.json") || (await get(`${SITE}/data/tennis-results-v4.json`)) || { results: [], kalshiUntil: 0, espnUntil: null };
   const have = new Set(hist.results.map((r) => r.id));
   const add = (rs) => { let n = 0; for (const r of rs) if (r.d && !have.has(r.id)) { have.add(r.id); hist.results.push(r); n++; } return n; };
   const firstRun = hist.results.length === 0;
@@ -146,7 +147,7 @@ async function main() {
   const cut = new Date(now - 550 * 86400_000).toISOString().slice(0, 10);
   hist.results = hist.results.filter((r) => r.d >= cut);
   fs.mkdirSync(DATA, { recursive: true });
-  fs.writeFileSync(path.join(DATA, "tennis-results-v3.json"), JSON.stringify(hist));
+  fs.writeFileSync(path.join(DATA, "tennis-results-v4.json"), JSON.stringify(hist));
 
   const R = rate(hist.results);
   console.log(`tennis: history ${hist.results.length} matches (+${added} new) · rated ${R.ATP.size} ATP / ${R.WTA.size} WTA players · sources ${JSON.stringify(hist.results.reduce((a, r) => ((a[r.src] = (a[r.src] || 0) + 1), a), {}))}`);
