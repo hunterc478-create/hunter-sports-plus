@@ -1,7 +1,7 @@
 /**
  * Tennis picks from Kalshi match markets + a player rating model (Elo).
  *
- *   history  public/data/tennis-results.json   every finished match we know: Kalshi settled match markets (ATP, WTA,
+ *   history  public/data/tennis-results-v2.json   every finished match we know: Kalshi settled match markets (ATP, WTA,
  *                                              Challengers), ESPN main-tour results, and Jeff Sackmann's files when
  *                                              they exist. Carried over between runs; only new results are fetched.
  *   out      public/data/tennis-cands.json     { updatedAt, cands: [...], results: { [eventTicker]: winnerName } }
@@ -63,14 +63,16 @@ async function espnWeeks(tour, fromIso) {
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 3)) days.push(d.toISOString().slice(0, 10).replace(/-/g, ""));
   const boards = await Promise.all(days.map((d) => get(`https://site.api.espn.com/apis/site/v2/sports/tennis/${tour.toLowerCase()}/scoreboard?dates=${d}`)));
   for (const b of boards) for (const e of b?.events || []) for (const g of e.groupings || []) {
-    if (!/singles/i.test(g.grouping?.displayName || "")) continue;
+    const gname = g.grouping?.displayName || "";
+    if (!/singles/i.test(gname)) continue;
+    const gtour = /women/i.test(gname) ? "WTA" : /men/i.test(gname) ? "ATP" : tour;     // combined events list both tours
     for (const c of g.competitions || []) {
       if (c.status?.type?.state !== "post") continue;
       const W = (c.competitors || []).find((x) => x.winner), Lz = (c.competitors || []).find((x) => !x.winner);
       if (!W?.athlete?.displayName || !Lz?.athlete?.displayName) continue;
       const sets = (W.linescores || []).length;
       if (!sets) continue;                                  // walkovers
-      res.push({ id: "e:" + c.id, d: (c.date || "").slice(0, 10), w: W.athlete.displayName, l: Lz.athlete.displayName, tour, ch: 0, src: "espn" });
+      res.push({ id: "e:" + c.id, d: (c.date || "").slice(0, 10), w: W.athlete.displayName, l: Lz.athlete.displayName, tour: gtour, ch: 0, src: "espn" });
     }
   }
   return res;
@@ -119,7 +121,7 @@ function rate(results) {
 /* ---------------- main ---------------- */
 async function main() {
   const now = Date.now();
-  let hist = read("tennis-results.json") || (await get(`${SITE}/data/tennis-results.json`)) || { results: [], kalshiUntil: 0, espnUntil: null };
+  let hist = read("tennis-results-v2.json") || (await get(`${SITE}/data/tennis-results-v2.json`)) || { results: [], kalshiUntil: 0, espnUntil: null };
   const have = new Set(hist.results.map((r) => r.id));
   const add = (rs) => { let n = 0; for (const r of rs) if (r.d && !have.has(r.id)) { have.add(r.id); hist.results.push(r); n++; } return n; };
   const firstRun = hist.results.length === 0;
@@ -140,7 +142,7 @@ async function main() {
   const cut = new Date(now - 550 * 86400_000).toISOString().slice(0, 10);
   hist.results = hist.results.filter((r) => r.d >= cut);
   fs.mkdirSync(DATA, { recursive: true });
-  fs.writeFileSync(path.join(DATA, "tennis-results.json"), JSON.stringify(hist));
+  fs.writeFileSync(path.join(DATA, "tennis-results-v2.json"), JSON.stringify(hist));
 
   const R = rate(hist.results);
   console.log(`tennis: history ${hist.results.length} matches (+${added} new) · rated ${R.ATP.size} ATP / ${R.WTA.size} WTA players · sources ${JSON.stringify(hist.results.reduce((a, r) => ((a[r.src] = (a[r.src] || 0) + 1), a), {}))}`);
