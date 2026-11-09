@@ -128,7 +128,7 @@ function pickCard(p, top) {
   const mine = (p.myBooks || []).filter((b) => b.name !== p.book).slice(0, 2).map((b) => `${esc(b.name)} <b>${fmt(b.odds)}</b>`).join(" · ");
   const badge = p.result ? `<span class="badge ${p.result}">${p.result.toUpperCase()}</span>` : live ? `<span class="badge live">● LIVE</span>` : top ? `<span class="badge top">TOP PICK</span>` : "";
   return `<div class="pick ${top && !p.result ? "top" : ""}">
-    <div class="ph"><span class="lg">${ICON[p.sport] || ""} ${esc(LG[p.league] || p.league)} · ${esc(when(p.start))}</span>${badge}</div>
+    <div class="ph"><span class="lg">${ICON[p.sport] || ""} ${esc(p.tourney || LG[p.league] || p.league)} · ${esc(when(p.start))}</span>${badge}</div>
     <div class="mu">${logo(p.away)}<b>${esc(p.away.short)}</b> ${p.sport === "Tennis" ? "vs" : "@"} <b>${esc(p.home.short)}</b>${logo(p.home)}</div>
     <div class="bet"><div class="l">${t ? logo(t) : ""}${esc(p.label)}</div><div class="odds"><b>${fmt(p.odds)}</b><small>${esc(p.book)}</small></div></div>
     <div class="meta"><span>Fair <b>${pctS(p.fair)}</b></span><span class="g">Edge <b>+${(p.ev * 100).toFixed(1)}%</b></span><span>${p.books} books</span>${mine ? `<span>${mine}</span>` : ""}${p.result ? `<span><b>${esc(p.score || "")}</b></span>` : ""}</div>

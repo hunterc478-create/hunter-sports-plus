@@ -78,6 +78,9 @@ jobs:
           curl -fsS "$SITE_URL/data/tennis-odds.json" -o public/data/tennis-odds.json || true
           fi
 
+      - name: Tennis ratings + Kalshi matches
+        run: node scripts/tennis.mjs || echo "Tennis step failed; keeping the last picks"
+
       - name: Make, close and grade picks
         env:
           SITE_URL: ${{ steps.pages.outputs.base_url }}

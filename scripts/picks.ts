@@ -57,7 +57,7 @@ function readJson<T>(file: string): T | null { try { return JSON.parse(fs.readFi
 
 /* ---------------- candidates from the board ---------------- */
 type J = Record<string, any>;
-interface Cand { matchupId: string; league: string; market: Market; side: Side; line?: number; label: string; home: Team; away: Team; start: string; book: string; odds: number; fair: number; ev: number; books: number; myBooks: { name: string; odds: number }[] }
+interface Cand { why?: string[]; tourney?: string; matchupId: string; league: string; market: Market; side: Side; line?: number; label: string; home: Team; away: Team; start: string; book: string; odds: number; fair: number; ev: number; books: number; myBooks: { name: string; odds: number }[] }
 
 const team = (c: J): Team => ({ name: c.name, short: c.shortName || c.name, abbr: c.abbreviation, logo: c.logoUrl });
 
@@ -259,6 +259,9 @@ async function main() {
   const bundle = readJson<J>(path.join(DATA, "live.json")) ?? readJson<J>(path.join("data", "live.json"));
   if (!bundle) { console.log("picks: no board, nothing to do"); return; }
   const tennisCache = readJson<J>(path.join(DATA, "tennis-odds.json"));
+  // Kalshi tennis matches priced by the rating model (scripts/tennis.mjs)
+  const kt = readJson<{ cands: Cand[]; results: Record<string, string> }>(path.join(DATA, "tennis-cands.json"));
+  const tennisK = (kt?.cands ?? []).filter((c) => new Date(c.start).getTime() > now);
   const results = readJson<Record<string, { home: number; away: number }>>(path.join(DATA, "results.json")) ?? {};
   let prev = readJson<{ picks: Pick[] }>(path.join(DATA, "picks.json"));
   if (!prev) prev = await getJson<{ picks: Pick[] }>(`${SITE}/data/picks.json`);
@@ -266,10 +269,10 @@ async function main() {
   const byId = new Map(picks.map((p) => [p.id, p]));
 
   // 1) candidates, best first
-  const cands = [...boardCands(bundle, now), ...tennisTotalCands(bundle, tennisCache, now)].filter((c) => c.ev >= MIN_EV).sort((a, b) => b.ev - a.ev);
+  const cands = [...boardCands(bundle, now), ...tennisTotalCands(bundle, tennisCache, now), ...tennisK].filter((c) => c.ev >= (c.book === "Kalshi" && SPORT[c.league] === "Tennis" ? 0.03 : MIN_EV)).sort((a, b) => b.ev - a.ev);
 
   // 2) closing line: refresh every still-pending pick from the current board until it starts
-  const all = [...boardCands(bundle, now), ...tennisTotalCands(bundle, tennisCache, now)];
+  const all = [...boardCands(bundle, now), ...tennisTotalCands(bundle, tennisCache, now), ...tennisK];
   for (const p of picks) {
     if (p.result || new Date(p.start).getTime() <= now) continue;
     const c = all.find((x) => x.matchupId === p.matchupId && x.market === p.market && x.side === p.side && (x.line ?? null) === (p.line ?? null));
@@ -297,6 +300,7 @@ async function main() {
   let whys = 0;
   for (const p of picks) {
     if (p.result || new Date(p.start).getTime() <= now) continue;
+    if (p.sport === "Tennis" && p.matchupId.startsWith("KX")) { const c = tennisK.find((x) => x.matchupId === p.matchupId && x.side === p.side); if (c?.why) p.why = c.why; continue; }
     try { const w = await buildWhy(p); if (w.length) { p.why = w; whys++; } } catch {}
   }
   const sample = picks.find((p) => !p.result && p.why && p.why.length > 1);
@@ -307,7 +311,10 @@ async function main() {
   for (const p of picks) {
     if (p.result) continue;
     const started = new Date(p.start).getTime();
-    if (p.sport === "Tennis" && p.market === "total") {
+    if (p.sport === "Tennis" && p.matchupId.startsWith("KX")) {
+      const w = kt?.results?.[p.matchupId];
+      if (w) { const won = nm(w) === nm(p.side === "home" ? p.home.name : p.away.name); p.result = won ? "win" : "loss"; p.score = `${w} won`; }
+    } else if (p.sport === "Tennis" && p.market === "total") {
       const g = await tennisGames(p);
       if (g != null) { p.result = gradeScore(p, g, 0); p.score = `${g} games`; }
     } else {
