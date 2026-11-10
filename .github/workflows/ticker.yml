@@ -1,0 +1,33 @@
+name: Ticker (keeps updates on time)
+# GitHub's own scheduler skips runs when it's busy (Nov 9-10: 8+ hour gaps). This job stays up ~5.5 hours, starts an
+# update every 20 minutes, then starts its own next shift, so the site keeps refreshing no matter what.
+on:
+  schedule:
+    - cron: "17 */6 * * *"   # backup start in case the chain ever breaks
+  workflow_dispatch:
+permissions:
+  actions: write
+concurrency:
+  group: ticker
+  cancel-in-progress: false
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Start an update every 20 minutes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          R: ${{ github.repository }}
+        run: |
+          end=$(( $(date +%s) + 5*3600 + 30*60 ))
+          while [ "$(date +%s)" -lt "$end" ]; do
+            gh workflow run deploy.yml -R "$R" --ref main && echo "update started $(date -u +%H:%M)" || echo "could not start an update"
+            sleep 1200
+          done
+      - name: Start the next shift
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          R: ${{ github.repository }}
+        run: gh workflow run ticker.yml -R "$R" --ref main || true
