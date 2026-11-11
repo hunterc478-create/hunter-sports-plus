@@ -1,0 +1,34 @@
+name: Record peek (temporary)
+on: workflow_dispatch
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -fsS "https://hunterc478-create.github.io/hunter-sports-plus/data/picks.json?x=$RANDOM" -o sp.json
+          curl -fsS "https://hunterc478-create.github.io/hunters-sauce/data/best-record.json?x=$RANDOM" -o hs.json
+          python3 - <<'PY'
+          import json, collections
+          imp=lambda o: 100/(o+100) if o>0 else -o/(-o+100)
+          def show(title, rows, key):
+            g=collections.defaultdict(list)
+            for r in rows: g[key(r)].append(r)
+            print("==", title)
+            for k,v in sorted(g.items(), key=lambda kv:str(kv[0])):
+              s=[x for x in v if x.get('result') in ('win','loss','push')]
+              w=sum(x['result']=='win' for x in s); l=sum(x['result']=='loss' for x in s); u=sum(x.get('units',0) for x in s)
+              clv=[x for x in s if x.get('closeFair') is not None]; beat=sum(x['closeFair']>imp(x['odds']) for x in clv)
+              print(f"  {str(k):38} {w}-{l}  {u:+.2f}u  roi {100*u/max(1,len(s)):+.0f}%  open {sum(not x.get('result') for x in v)}" + (f"  beat-close {beat}/{len(clv)}" if clv else ""))
+          sp=json.load(open('sp.json'))['picks']
+          show("SPORTS PLUS by sport", sp, lambda p: p['sport'])
+          show("SPORTS PLUS tennis by type", [p for p in sp if p['sport']=='Tennis'], lambda p: ("Kalshi " if p['matchupId'].startswith('KX') else "books ")+p['market'])
+          show("SPORTS PLUS by price", sp, lambda p: 'fav' if p['odds']<0 else 'dog')
+          show("SPORTS PLUS by day", sp, lambda p: p['start'][:10])
+          hs=json.load(open('hs.json'))['bets']
+          hs=[b for b in hs if not b.get('shadow')]
+          show("SAUCE by league+kind", hs, lambda b: b['lg']+" "+b['kind'])
+          show("SAUCE by rules era", hs, lambda b: b['lg']+(" reasons-era" if b.get('checks') is not None else " edge-era"))
+          show("SAUCE NFL by side", [b for b in hs if b['lg']=='NFL'], lambda b: ('under' if b.get('side')=='under' else 'over/yes' if b['kind']=='prop' or b.get('side')=='over' else 'side'))
+          show("SAUCE CFB by period", [b for b in hs if b['lg']=='NCAAF'], lambda b: b.get('period','full')+(" est" if b.get('est') else ""))
+          show("SAUCE by rating", hs, lambda b: b['lg']+" "+str(b.get('rating')))
+          PY
