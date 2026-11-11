@@ -147,7 +147,7 @@ function recCard(title, r) {
 }
 
 function render() {
-  const P = DATA.picks || [];
+  const ALL = DATA.picks || [], P = ALL.filter((p) => p.tier !== "more"), M = ALL.filter((p) => p.tier === "more");
   const open = (s) => P.filter((p) => !p.result && (s === "All" || p.sport === s));
   $tabs.innerHTML = ["All", ...SPORTS].map((s) => { const n = open(s).length; return `<button class="tab ${TAB === s ? "on" : ""}" data-t="${esc(s)}">${ICON[s]} ${esc(s)}${n ? `<i>${n}</i>` : ""}</button>`; }).join("");
   const mine = TAB === "All" ? P : P.filter((p) => p.sport === TAB);
@@ -167,6 +167,12 @@ function render() {
       const list = pend.filter((p) => (when(p.start).split(" ").slice(0, -2).join(" ") || "Today") === d);
       h += `<div class="sec"><span>${esc(d)}'s picks</span><span>${list.length}</span></div>` + list.sort((a, b) => tops.has(b.id) - tops.has(a.id) || a.start.localeCompare(b.start)).map((p) => pickCard(p, tops.has(p.id))).join("");
     }
+  }
+  // ➕ More plays: smaller edges, own record
+  const mm = TAB === "All" ? M : M.filter((p) => p.sport === TAB);
+  if (mm.length) {
+    const mo = mm.filter((p) => !p.result).sort((a, b) => a.start.localeCompare(b.start)), mr = record(mm);
+    h += `<div class="sec"><span>➕ More plays</span><span>${mr.n ? `${mr.w}-${mr.l}${mr.pu ? "-" + mr.pu : ""} · ${u(mr.units)}` : mo.length + " open"}</span></div><div class="empty" style="padding:4px 4px 10px;text-align:left">Smaller edges (1–2.5%) to spread across the day. Half-size bets are a good fit. Tracked separately from the main record.</div>` + mo.map((p) => pickCard(p, false)).join("") + mm.filter((p) => p.result).sort((a, b) => b.start.localeCompare(a.start)).slice(0, 8).map(resRow).join("");
   }
   if (done.length) {
     const show = SHOWALL ? done : done.slice(0, 15);

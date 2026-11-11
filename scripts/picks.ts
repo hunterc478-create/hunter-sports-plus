@@ -29,6 +29,7 @@ export interface Pick {
   loggedAt: string;
   closeFair?: number; closeOdds?: number; closeAt?: string;
   why?: string[];
+  tier?: "more";
   result?: "win" | "loss" | "push" | "void"; units?: number; score?: string; settledAt?: string;
 }
 
@@ -41,6 +42,8 @@ const SPORT: Record<string, string> = {
 };
 const CAP: Record<string, number> = { NBA: 5, NHL: 5, "College Hoops": 6, Soccer: 6, Tennis: 6, "Tennis totals": 4, WNBA: 3, MLB: 5 };
 const capKey = (sport: string, market: string) => (sport === "Tennis" && market === "total" ? "Tennis totals" : sport);
+const CAP_MORE: Record<string, number> = { NBA: 4, NHL: 4, "College Hoops": 4, Soccer: 4, Tennis: 4, "Tennis totals": 3, WNBA: 2, MLB: 4 };
+const MORE_EV = 0.01, MORE_EV_KT = 0.015, MORE_WINDOW_H = 30;
 const MIN_EV = 0.025, MAX_GAP = 0.06, LOG_WINDOW_H = 18;
 const OK_BOOK = /fanduel|draft ?kings|betmgm|betrivers|fanatics|caesars|hard rock|bet365|espn ?bet|kalshi|novig|fliff/i;
 const MY_BOOK = /fanduel|kalshi|novig|fliff/i;
@@ -271,10 +274,13 @@ async function main() {
   const byId = new Map(picks.map((p) => [p.id, p]));
 
   // 1) candidates, best first
-  const cands = [...boardCands(bundle, now), ...tennisTotalCands(bundle, tennisCache, now), ...tennisK].filter((c) => c.ev >= (c.book === "Kalshi" && SPORT[c.league] === "Tennis" ? 0.03 : MIN_EV)).sort((a, b) => b.ev - a.ev);
+  const isKT = (c: { book: string; league: string }) => c.book === "Kalshi" && SPORT[c.league] === "Tennis";
+  const pool = [...boardCands(bundle, now), ...tennisTotalCands(bundle, tennisCache, now), ...tennisK].sort((a, b) => b.ev - a.ev);
+  const cands = pool.filter((c) => c.ev >= (isKT(c) ? 0.03 : MIN_EV));
+  const moreCands = pool.filter((c) => c.ev < (isKT(c) ? 0.03 : MIN_EV) && c.ev >= (isKT(c) ? MORE_EV_KT : MORE_EV));
 
   // 2) closing line: refresh every still-pending pick from the current board until it starts
-  const all = [...boardCands(bundle, now), ...tennisTotalCands(bundle, tennisCache, now), ...tennisK];
+  const all = pool;
   for (const p of picks) {
     if (p.result || new Date(p.start).getTime() <= now) continue;
     const c = all.find((x) => x.matchupId === p.matchupId && x.market === p.market && x.side === p.side && (x.line ?? null) === (p.line ?? null));
@@ -283,8 +289,8 @@ async function main() {
 
   // 3) log new picks: one per game, inside the window, capped per sport per day
   const perDay = new Map<string, number>();
-  for (const p of picks) { const k = capKey(p.sport, p.market) + "|" + dayOf(p.start); perDay.set(k, (perDay.get(k) ?? 0) + 1); }
-  const games = new Set(picks.map((p) => p.matchupId));
+  for (const p of picks) { const k = (p.tier === "more" ? "more|" : "") + capKey(p.sport, p.market) + "|" + dayOf(p.start); perDay.set(k, (perDay.get(k) ?? 0) + 1); }
+  const games = new Set(picks.filter((p) => p.tier !== "more").map((p) => p.matchupId));
   let added = 0;
   for (const c of cands) {
     const sport = SPORT[c.league];
@@ -297,6 +303,21 @@ async function main() {
     const p: Pick = { id, sport, ...c, fair: r3(c.fair), ev: r3(c.ev), loggedAt: new Date(now).toISOString(), closeFair: r3(c.fair), closeOdds: c.odds };
     picks.push(p); byId.set(id, p); games.add(c.matchupId); perDay.set(k, (perDay.get(k) ?? 0) + 1); added++;
   }
+  // 3a) ➕ More plays: smaller edges (1-2.5%, Kalshi tennis 1.5-3%), one per game, never a game that already has a pick
+  const anyGame = new Set(picks.map((p) => p.matchupId));
+  let addedMore = 0;
+  for (const c of moreCands) {
+    const sport = SPORT[c.league];
+    const hours = (new Date(c.start).getTime() - now) / 3600_000;
+    if (hours > (sport === "Tennis" ? 40 : MORE_WINDOW_H) || anyGame.has(c.matchupId)) continue;
+    const ck = capKey(sport, c.market), k = "more|" + ck + "|" + dayOf(c.start);
+    if ((perDay.get(k) ?? 0) >= (CAP_MORE[ck] ?? 3)) continue;
+    const id = `${c.matchupId}:${c.market}:${c.side}:${c.line ?? ""}`;
+    if (byId.has(id)) continue;
+    const p: Pick = { id, sport, ...c, fair: r3(c.fair), ev: r3(c.ev), loggedAt: new Date(now).toISOString(), closeFair: r3(c.fair), closeOdds: c.odds, tier: "more" };
+    picks.push(p); byId.set(id, p); anyGame.add(c.matchupId); perDay.set(k, (perDay.get(k) ?? 0) + 1); addedMore++;
+  }
+  console.log(`picks: more plays · ${moreCands.length} candidates · ${addedMore} new`);
 
   // 3b) the "why" for open picks (refreshed each run so injuries stay current)
   let whys = 0;
