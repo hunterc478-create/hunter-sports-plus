@@ -101,7 +101,7 @@ const pctS = (x) => Math.round(x * 100) + "%";
 const u = (x) => (x >= 0 ? "+" : "") + x.toFixed(1) + "u";
 const day = (iso) => new Date(iso).toLocaleDateString("en-CA");
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
-let DATA = { picks: [] }, TAB = store.get("tab") || "All", SHOWALL = false;
+let MOREOPEN = false, DATA = { picks: [] }, TAB = store.get("tab") || "All", SHOWALL = false;
 
 function record(list) {
   const s = list.filter((p) => p.result && p.result !== "void");
@@ -172,7 +172,8 @@ function render() {
   const mm = TAB === "All" ? M : M.filter((p) => p.sport === TAB);
   if (mm.length) {
     const mo = mm.filter((p) => !p.result).sort((a, b) => a.start.localeCompare(b.start)), mr = record(mm);
-    h += `<div class="sec"><span>➕ More plays</span><span>${mr.n ? `${mr.w}-${mr.l}${mr.pu ? "-" + mr.pu : ""} · ${u(mr.units)}` : mo.length + " open"}</span></div><div class="empty" style="padding:4px 4px 10px;text-align:left">Smaller edges (1–2.5%) to spread across the day. Half-size bets are a good fit. Tracked separately from the main record.</div>` + mo.map((p) => pickCard(p, false)).join("") + mm.filter((p) => p.result).sort((a, b) => b.start.localeCompare(a.start)).slice(0, 8).map(resRow).join("");
+    h += `<button class="more" id="moremp">${MOREOPEN ? "Hide more plays" : `➕ More plays${mo.length ? " · " + mo.length + " open" : ""}`}</button>`;
+    if (MOREOPEN) h += `<div class="sec"><span>➕ More plays</span><span>${mr.n ? `${mr.w}-${mr.l}${mr.pu ? "-" + mr.pu : ""} · ${u(mr.units)}` : mo.length + " open"}</span></div><div class="empty" style="padding:4px 4px 10px;text-align:left">Smaller edges (1–2.5%) to spread across the day. Half-size bets are a good fit. Tracked separately from the main record.</div>` + mo.map((p) => pickCard(p, false)).join("") + mm.filter((p) => p.result).sort((a, b) => b.start.localeCompare(a.start)).slice(0, 8).map(resRow).join("");
   }
   if (done.length) {
     const show = SHOWALL ? done : done.slice(0, 15);
@@ -188,6 +189,7 @@ document.addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.t) { TAB = b.dataset.t; SHOWALL = false; store.set("tab", TAB); render(); window.scrollTo(0, 0); }
   else if (b.id === "more") { SHOWALL = true; render(); }
+  else if (b.id === "moremp") { MOREOPEN = !MOREOPEN; render(); }
 });
 async function load() {
   try { const r = await fetch("data/picks.json?" + Date.now(), { cache: "no-store" }); if (r.ok) DATA = await r.json(); } catch {}

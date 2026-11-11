@@ -290,6 +290,7 @@ async function main() {
   // 3) log new picks: one per game, inside the window, capped per sport per day
   const perDay = new Map<string, number>();
   for (const p of picks) { const k = (p.tier === "more" ? "more|" : "") + capKey(p.sport, p.market) + "|" + dayOf(p.start); perDay.set(k, (perDay.get(k) ?? 0) + 1); }
+  for (const p of picks) if (p.tier === "more") { const dk = "moreall|" + dayOf(p.start); perDay.set(dk, (perDay.get(dk) ?? 0) + 1); }
   const games = new Set(picks.filter((p) => p.tier !== "more").map((p) => p.matchupId));
   let added = 0;
   for (const c of cands) {
@@ -311,11 +312,12 @@ async function main() {
     const hours = (new Date(c.start).getTime() - now) / 3600_000;
     if (hours > (sport === "Tennis" ? 40 : MORE_WINDOW_H) || anyGame.has(c.matchupId)) continue;
     const ck = capKey(sport, c.market), k = "more|" + ck + "|" + dayOf(c.start);
-    if ((perDay.get(k) ?? 0) >= (CAP_MORE[ck] ?? 3)) continue;
+    const dk = "moreall|" + dayOf(c.start);
+    if ((perDay.get(k) ?? 0) >= (CAP_MORE[ck] ?? 3) || (perDay.get(dk) ?? 0) >= 3) continue;   // 3 extras a day, all sports
     const id = `${c.matchupId}:${c.market}:${c.side}:${c.line ?? ""}`;
     if (byId.has(id)) continue;
     const p: Pick = { id, sport, ...c, fair: r3(c.fair), ev: r3(c.ev), loggedAt: new Date(now).toISOString(), closeFair: r3(c.fair), closeOdds: c.odds, tier: "more" };
-    picks.push(p); byId.set(id, p); anyGame.add(c.matchupId); perDay.set(k, (perDay.get(k) ?? 0) + 1); addedMore++;
+    picks.push(p); byId.set(id, p); anyGame.add(c.matchupId); perDay.set(k, (perDay.get(k) ?? 0) + 1); perDay.set(dk, (perDay.get(dk) ?? 0) + 1); addedMore++;
   }
   console.log(`picks: more plays · ${moreCands.length} candidates · ${addedMore} new`);
 
