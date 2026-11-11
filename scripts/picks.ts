@@ -27,7 +27,7 @@ export interface Pick {
   book: string; odds: number; fair: number; ev: number; books: number;
   myBooks?: { name: string; odds: number }[];
   loggedAt: string;
-  closeFair?: number; closeOdds?: number;
+  closeFair?: number; closeOdds?: number; closeAt?: string;
   why?: string[];
   result?: "win" | "loss" | "push" | "void"; units?: number; score?: string; settledAt?: string;
 }
@@ -278,7 +278,7 @@ async function main() {
   for (const p of picks) {
     if (p.result || new Date(p.start).getTime() <= now) continue;
     const c = all.find((x) => x.matchupId === p.matchupId && x.market === p.market && x.side === p.side && (x.line ?? null) === (p.line ?? null));
-    if (c) { p.closeFair = r3(c.fair); p.closeOdds = c.odds; }
+    if (c && now - new Date(p.loggedAt).getTime() > 20 * 60000) { p.closeFair = r3(c.fair); p.closeOdds = c.odds; p.closeAt = new Date(now).toISOString(); }
   }
 
   // 3) log new picks: one per game, inside the window, capped per sport per day

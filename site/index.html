@@ -107,7 +107,7 @@ function record(list) {
   const s = list.filter((p) => p.result && p.result !== "void");
   const w = s.filter((p) => p.result === "win").length, l = s.filter((p) => p.result === "loss").length, pu = s.filter((p) => p.result === "push").length;
   const units = s.reduce((a, p) => a + (p.units || 0), 0);
-  const clv = s.filter((p) => p.closeFair != null);
+  const clv = s.filter((p) => p.closeAt && p.closeFair != null);   // only real closing lines (re-checked after the pick was logged)
   const beat = clv.filter((p) => p.closeFair > imp(p.odds)).length;
   return { w, l, pu, n: s.length, units, roi: s.length ? units / s.length : 0, hit: w + l ? w / (w + l) : 0, clv: clv.length ? beat / clv.length : null };
 }
