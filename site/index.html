@@ -123,10 +123,11 @@ const logo = (t) => (t?.logo ? `<img src="${esc(t.logo)}" alt="" onerror="this.s
 function betTeam(p) { return p.side === "home" ? p.home : p.side === "away" ? p.away : null; }
 
 function pickCard(p, top) {
-  const live = !p.result && new Date(p.start) <= new Date();
+  const live = !p.result && (p.state ? p.state === "in" : new Date(p.start) <= new Date());
+  const waiting = !p.result && !live && p.state === "pre" && new Date(p.start) <= new Date();   // tennis running late
   const t = betTeam(p);
   const mine = (p.myBooks || []).filter((b) => b.name !== p.book).slice(0, 2).map((b) => `${esc(b.name)} <b>${fmt(b.odds)}</b>`).join(" · ");
-  const badge = p.result ? `<span class="badge ${p.result}">${p.result.toUpperCase()}</span>` : live ? `<span class="badge live">● LIVE</span>` : top ? `<span class="badge top">TOP PICK</span>` : "";
+  const badge = p.result ? `<span class="badge ${p.result}">${p.result.toUpperCase()}</span>` : live ? `<span class="badge live">● LIVE</span>` : waiting ? `<span class="badge">⏳ Running late</span>` : top ? `<span class="badge top">TOP PICK</span>` : "";
   return `<div class="pick ${top && !p.result ? "top" : ""}">
     <div class="ph"><span class="lg">${ICON[p.sport] || ""} ${esc(p.tourney || LG[p.league] || p.league)} · ${esc(when(p.start))}</span>${badge}</div>
     <div class="mu">${logo(p.away)}<b>${esc(p.away.short)}</b> ${p.sport === "Tennis" ? "vs" : "@"} <b>${esc(p.home.short)}</b>${logo(p.home)}</div>

@@ -30,6 +30,7 @@ export interface Pick {
   closeFair?: number; closeOdds?: number; closeAt?: string;
   why?: string[];
   tier?: "more";
+  state?: string; status?: string;
   result?: "win" | "loss" | "push" | "void"; units?: number; score?: string; settledAt?: string;
 }
 
@@ -264,7 +265,7 @@ async function main() {
   if (!bundle) { console.log("picks: no board, nothing to do"); return; }
   const tennisCache = readJson<J>(path.join(DATA, "tennis-odds.json"));
   // Kalshi tennis matches priced by the rating model (scripts/tennis.mjs)
-  const kt = readJson<{ cands: Cand[]; results: Record<string, string>; totals?: Record<string, string> }>(path.join(DATA, "tennis-cands.json"));
+  const kt = readJson<{ cands: Cand[]; results: Record<string, string>; totals?: Record<string, string>; sched?: { a: string; b: string; date: string; state: string; detail: string }[] }>(path.join(DATA, "tennis-cands.json"));
   const tennisK = (kt?.cands ?? []).filter((c) => new Date(c.start).getTime() > now);
   const results = readJson<Record<string, { home: number; away: number }>>(path.join(DATA, "results.json")) ?? {};
   let prev = readJson<{ picks: Pick[] }>(path.join(DATA, "picks.json"));
@@ -330,6 +331,20 @@ async function main() {
   }
   const sample = picks.find((p) => !p.result && p.why && p.why.length > 1);
   if (sample) console.log(`picks: why sample (${sample.league} ${sample.label}):\n  - ` + sample.why!.join("\n  - "));
+
+  // 3c) tennis start times move with delays: follow ESPN's order of play for open tennis picks
+  const last = (x: string) => nm(String(x).trim().split(/\s+/).pop());
+  let moved = 0;
+  for (const p of picks) {
+    if (p.result || p.sport !== "Tennis") continue;
+    const want = [last(p.home.name), last(p.away.name)].sort().join("|");
+    const m = (kt?.sched ?? []).filter((x) => [last(x.a), last(x.b)].sort().join("|") === want)
+      .sort((x, y) => Math.abs(new Date(x.date).getTime() - new Date(p.start).getTime()) - Math.abs(new Date(y.date).getTime() - new Date(p.start).getTime()))[0];
+    if (!m || Math.abs(new Date(m.date).getTime() - new Date(p.start).getTime()) > 36 * 3600_000) continue;
+    if (m.state === "pre" && m.date !== p.start && new Date(m.date).getTime() > now - 6 * 3600_000) { p.start = m.date; moved++; }
+    p.state = m.state; p.status = m.detail;
+  }
+  if (moved) console.log(`picks: ${moved} tennis start times moved to ESPN's order of play`);
 
   // 4) grade
   let graded = 0;

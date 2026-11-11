@@ -81,6 +81,21 @@ async function espnWeeks(tour, fromIso) {
   }
   return res;
 }
+// today's order of play from ESPN: real start times (they move with delays) and whether a match is on court
+async function espnSchedule() {
+  const out = [], now = Date.now();
+  const days = [-1, 0, 1].map((o) => new Date(now + o * 86400_000).toISOString().slice(0, 10).replace(/-/g, ""));
+  const boards = await Promise.all(["atp", "wta"].flatMap((t) => days.map((d) => get(`https://site.api.espn.com/apis/site/v2/sports/tennis/${t}/scoreboard?dates=${d}`))));
+  for (const b of boards) for (const e of b?.events || []) for (const g of e.groupings || []) {
+    if (!/singles/i.test(g.grouping?.displayName || "")) continue;
+    for (const c of g.competitions || []) {
+      const n = (c.competitors || []).map((x) => x.athlete?.displayName).filter(Boolean);
+      if (n.length !== 2 || !c.date) continue;
+      out.push({ a: n[0], b: n[1], date: c.date, state: c.status?.type?.state || "pre", detail: c.status?.type?.shortDetail || "" });
+    }
+  }
+  return out;
+}
 async function sackmann(year) {
   const res = [];
   const files = [["tennis_atp", `atp_matches_${year}.csv`, "ATP", 0], ["tennis_atp", `atp_matches_qual_chall_${year}.csv`, "ATP", 1], ["tennis_wta", `wta_matches_${year}.csv`, "WTA", 0], ["tennis_wta", `wta_matches_qual_itf_${year}.csv`, "WTA", 1]];
@@ -266,7 +281,9 @@ async function main() {
   }
   console.log(`tennis: totals checked ${JSON.stringify(tSkip)} · biggest model-vs-price gap ${(bestSeen * 100).toFixed(0)} pts`);
   console.log(`tennis: ${tCands} total-games picks with 3%+ edge · ${Object.keys(totals).length} settled total lines for grading`);
-  fs.writeFileSync(path.join(DATA, "tennis-cands.json"), JSON.stringify({ updatedAt: new Date(now).toISOString(), cands, results, totals }));
+  const sched = await espnSchedule().catch(() => []);
+  console.log(`tennis: ${sched.length} matches on ESPN's order of play (${sched.filter((m) => m.state === "in").length} on court)`);
+  fs.writeFileSync(path.join(DATA, "tennis-cands.json"), JSON.stringify({ updatedAt: new Date(now).toISOString(), cands, results, totals, sched }));
   console.log(`tennis: ${open} open Kalshi matches · ${rated} with both players rated · ${cands.length} picks with 3%+ edge · ${Object.keys(results).length} recent results for grading`);
   for (const c of cands.sort((a, b) => b.ev - a.ev).slice(0, 3)) console.log(`  ${c.tourney}: ${c.label} ${c.odds} · ${Math.round(c.fair * 100)}% · edge ${(c.ev * 100).toFixed(1)}%\n    - ${c.why.join("\n    - ")}`);
 }
