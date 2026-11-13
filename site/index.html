@@ -127,7 +127,7 @@ function pickCard(p, top) {
   const waiting = !p.result && !live && p.state === "pre" && new Date(p.start) <= new Date();   // tennis running late
   const t = betTeam(p);
   const mine = (p.myBooks || []).filter((b) => b.name !== p.book).slice(0, 2).map((b) => `${esc(b.name)} <b>${fmt(b.odds)}</b>`).join(" · ");
-  const badge = p.result ? `<span class="badge ${p.result}">${p.result.toUpperCase()}</span>` : live ? `<span class="badge live">● LIVE</span>` : waiting ? `<span class="badge">⏳ Running late</span>` : top ? `<span class="badge top">TOP PICK</span>` : "";
+  const badge = p.result ? `<span class="badge ${p.result}">${p.result.toUpperCase()}</span>` : live ? `<span class="badge live">● LIVE</span>` : p.state === "post" && !p.result ? `<span class="badge">⏳ Awaiting result</span>` : waiting ? `<span class="badge">⏳ Running late</span>` : top ? `<span class="badge top">TOP PICK</span>` : "";
   return `<div class="pick ${top && !p.result ? "top" : ""}">
     <div class="ph"><span class="lg">${ICON[p.sport] || ""} ${esc(p.tourney || LG[p.league] || p.league)} · ${esc(when(p.start))}</span>${badge}</div>
     <div class="mu">${logo(p.away)}<b>${esc(p.away.short)}</b> ${p.sport === "Tennis" ? "vs" : "@"} <b>${esc(p.home.short)}</b>${logo(p.home)}</div>
@@ -152,7 +152,8 @@ function render() {
   const open = (s) => P.filter((p) => !p.result && (s === "All" || p.sport === s));
   $tabs.innerHTML = ["All", ...SPORTS].map((s) => { const n = open(s).length; return `<button class="tab ${TAB === s ? "on" : ""}" data-t="${esc(s)}">${ICON[s]} ${esc(s)}${n ? `<i>${n}</i>` : ""}</button>`; }).join("");
   const mine = TAB === "All" ? P : P.filter((p) => p.sport === TAB);
-  const pend = mine.filter((p) => !p.result).sort((a, b) => a.start.localeCompare(b.start));
+  // finished but waiting on the official result: keep them off the top
+  const pend = mine.filter((p) => !p.result).sort((a, b) => (a.state === "post") - (b.state === "post") || a.start.localeCompare(b.start));
   const done = mine.filter((p) => p.result).sort((a, b) => b.start.localeCompare(a.start));
   let h = recCard(TAB === "All" ? "All sports · since " + (DATA.startedAt ? new Date(DATA.startedAt).toLocaleDateString([], { month: "short", day: "numeric" }) : "launch") : TAB + " record", record(mine));
   if (TAB === "All") {

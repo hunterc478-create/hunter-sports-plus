@@ -366,6 +366,7 @@ async function main() {
       const r = results[p.matchupId];
       if (r) { p.result = gradeScore(p, r.home, r.away); p.score = `${p.away.short} ${r.away} – ${p.home.short} ${r.home}`; }
     }
+    if (!p.result && p.state === "post" && /walkover|w\/o|cancel|postpon/i.test(p.status || "")) { p.result = "void"; p.score = p.status; }   // no match = no bet
     if (!p.result && now - started > 4 * 86400_000) p.result = "void";      // never got a final score (postponed / walkover)
     if (p.result) {
       p.units = p.result === "win" ? r3(dec(p.odds) - 1) : p.result === "loss" ? -1 : 0;
