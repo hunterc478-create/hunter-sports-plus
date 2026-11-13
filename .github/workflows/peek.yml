@@ -1,0 +1,9 @@
+name: peek
+on: workflow_dispatch
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -s "https://hunterc478-create.github.io/hunter-sports-plus/data/picks.json?x=$RANDOM" | jq -r '.updatedAt, (.picks[]|select(.result==null)|"\(.sport) \(.tier) \(.matchupId) \(.label) start=\(.start) logged=\(.loggedAt) state=\(.state) \(.status)")'
+          curl -s "https://hunterc478-create.github.io/hunter-sports-plus/data/tennis-cands.json?x=$RANDOM" | jq -c '.sched|length, (.[:3])'
