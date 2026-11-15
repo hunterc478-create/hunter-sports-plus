@@ -58,7 +58,7 @@ async function books(soon) {
   let cache = read("mma-odds.json") || (await get(`${SITE}/data/mma-odds.json`));
   const age = cache?.fetchedAt ? (now - new Date(cache.fetchedAt).getTime()) / 3600_000 : 1e9;
   const K = process.env.THE_ODDS_API_KEY;
-  if (K && soon && (age > 8 || process.env.FORCE_PROPS === "true")) {
+  if (K && ((soon && age > 8) || !cache || process.env.FORCE_PROPS === "true")) {
     const r = await get(`https://api.the-odds-api.com/v4/sports/mma_mixed_martial_arts/odds?apiKey=${K}&regions=us,us2&markets=h2h&oddsFormat=american`, true);
     if (r?.j) { cache = { fetchedAt: new Date(now).toISOString(), events: r.j }; console.log(`mma: pulled sportsbook lines (${r.j.length} fights, ${r.h.get("x-requests-remaining")} credits left)`); }
   }
