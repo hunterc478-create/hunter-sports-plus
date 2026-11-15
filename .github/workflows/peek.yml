@@ -1,0 +1,15 @@
+name: peek
+on: workflow_dispatch
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          K: ${{ secrets.THE_ODDS_API_KEY }}
+        run: |
+          curl -s -D h.txt "https://api.the-odds-api.com/v4/sports/mma_mixed_martial_arts/odds?apiKey=$K&regions=us&markets=h2h&oddsFormat=american" > o.json; grep -i x-requests h.txt
+          jq -c 'length, .[0:2][]|{commence_time,home_team,away_team,books:(.bookmakers|length),b0:.bookmakers[0].markets[0].outcomes}' o.json
+          for s in KXUFCFIGHT KXMMA KXUFC; do echo "== $s"; curl -s "https://api.elections.kalshi.com/trade-api/v2/markets?series_ticker=$s&status=open&limit=5" | jq -c '.markets|length, (.[0:2][]|{ticker,event_ticker,title,yes_sub_title,yes_ask_dollars,no_ask_dollars,occurrence_datetime,expected_expiration_time})'; done
+          curl -s "https://api.elections.kalshi.com/trade-api/v2/series?category=Sports" | jq -r '.series[]?.ticker' | grep -i "ufc\|mma\|fight\|box" | head
+          curl -s "https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard" | jq -c '.events[0]|{name,date,n:(.competitions|length),c0:(.competitions[0]|{id,date,status:.status.type,comp:[.competitors[]|{n:.athlete.displayName,w:.winner,rec:.records}],det:.details})}'
+          curl -s "https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard?dates=20261114" | jq -c '.events[0]|{name,n:(.competitions|length),c:(.competitions[-1]|{status:.status.type.description,comp:[.competitors[]|{n:.athlete.displayName,w:.winner}],det:[.details[]?|.type.text]})}'
