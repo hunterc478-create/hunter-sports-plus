@@ -29,7 +29,7 @@ export interface Pick {
   loggedAt: string;
   closeFair?: number; closeOdds?: number; closeAt?: string;
   why?: string[];
-  tier?: "more";
+  tier?: "more"; pk?: string;
   state?: string; status?: string;
   result?: "win" | "loss" | "push" | "void"; units?: number; score?: string; settledAt?: string;
 }
@@ -39,11 +39,11 @@ const SITE = (process.env.SITE_URL || "https://hunterc478-create.github.io/hunte
 const SPORT: Record<string, string> = {
   NBA: "NBA", NHL: "NHL", NCAAB: "College Hoops", WNBA: "WNBA", MLB: "MLB",
   EPL: "Soccer", LALIGA: "Soccer", SERIEA: "Soccer", BUNDESLIGA: "Soccer", LIGUE1: "Soccer", MLS: "Soccer", UCL: "Soccer",
-  ATP: "Tennis", WTA: "Tennis",
+  ATP: "Tennis", WTA: "Tennis", UFC: "MMA",
 };
-const CAP: Record<string, number> = { NBA: 5, NHL: 5, "College Hoops": 6, Soccer: 6, Tennis: 6, "Tennis totals": 4, WNBA: 3, MLB: 5 };
+const CAP: Record<string, number> = { NBA: 5, NHL: 5, "College Hoops": 6, Soccer: 6, Tennis: 6, "Tennis totals": 4, WNBA: 3, MLB: 5, MMA: 4 };
 const capKey = (sport: string, market: string) => (sport === "Tennis" && market === "total" ? "Tennis totals" : sport);
-const CAP_MORE: Record<string, number> = { NBA: 4, NHL: 4, "College Hoops": 4, Soccer: 4, Tennis: 4, "Tennis totals": 3, WNBA: 2, MLB: 4 };
+const CAP_MORE: Record<string, number> = { NBA: 4, NHL: 4, "College Hoops": 4, Soccer: 4, Tennis: 4, "Tennis totals": 3, WNBA: 2, MLB: 4, MMA: 3 };
 const MORE_EV = 0.01, MORE_EV_KT = 0.015, MORE_WINDOW_H = 30;
 const MIN_EV = 0.025, MAX_GAP = 0.06, LOG_WINDOW_H = 18;
 const OK_BOOK = /fanduel|draft ?kings|betmgm|betrivers|fanatics|caesars|hard rock|bet365|espn ?bet|kalshi|novig|fliff/i;
@@ -62,7 +62,7 @@ function readJson<T>(file: string): T | null { try { return JSON.parse(fs.readFi
 
 /* ---------------- candidates from the board ---------------- */
 type J = Record<string, any>;
-interface Cand { why?: string[]; tourney?: string; matchupId: string; league: string; market: Market; side: Side; line?: number; label: string; home: Team; away: Team; start: string; book: string; odds: number; fair: number; ev: number; books: number; myBooks: { name: string; odds: number }[] }
+interface Cand { pk?: string; why?: string[]; tourney?: string; matchupId: string; league: string; market: Market; side: Side; line?: number; label: string; home: Team; away: Team; start: string; book: string; odds: number; fair: number; ev: number; books: number; myBooks: { name: string; odds: number }[] }
 
 const team = (c: J): Team => ({ name: c.name, short: c.shortName || c.name, abbr: c.abbreviation, logo: c.logoUrl });
 
@@ -93,6 +93,26 @@ function boardCands(bundle: J, now: number): Cand[] {
         home: team(m.home), away: team(m.away), start: m.startTime, book: b.name, odds: b.odds, fair: v.marketProb, ev: b.ev, books: v.marketBooks,
         myBooks: v.books.filter((x: J) => MY_BOOK.test(x.name)).map((x: J) => ({ name: x.name, odds: x.odds })),
       });
+    }
+  }
+  return out;
+}
+
+/* ---------------- MMA fight moneylines (from scripts/mma.mjs) ---------------- */
+function mmaCands(mm: J | null, now: number): Cand[] {
+  const out: Cand[] = [];
+  const head = (id?: string) => (id ? `https://a.espncdn.com/i/headshots/mma/players/full/${id}.png` : undefined);
+  const short = (n: string) => n.trim().split(/\s+/).slice(-1)[0];
+  for (const f of mm?.fights ?? []) {
+    if (new Date(f.start).getTime() <= now) continue;
+    const home: Team = { name: f.a.name, short: short(f.a.name), logo: head(f.a.espn) }, away: Team = { name: f.b.name, short: short(f.b.name), logo: head(f.b.espn) };
+    for (const [side, S, fair] of [["home", f.a, f.fairA], ["away", f.b, 1 - f.fairA]] as const) {
+      const bks = f.books?.[S.name] ?? [];
+      const b = bestPrice(bks, fair);
+      if (!b || b.odds < -250 || b.odds > 300) continue;
+      out.push({ matchupId: "UFC:" + f.id, pk: f.pk, league: "UFC", market: "moneyline", side: side as Side, label: `${S.name} ML`, home, away, start: f.start,
+        book: b.name, odds: b.odds, fair, ev: b.ev, books: f.nBooks, tourney: f.event, why: f.why,
+        myBooks: bks.filter((x: J) => MY_BOOK.test(x.name)).map((x: J) => ({ name: x.name, odds: x.odds })) });
     }
   }
   return out;
@@ -267,6 +287,8 @@ async function main() {
   // Kalshi tennis matches priced by the rating model (scripts/tennis.mjs)
   const kt = readJson<{ cands: Cand[]; results: Record<string, string>; totals?: Record<string, string>; sched?: { a: string; b: string; date: string; state: string; detail: string }[] }>(path.join(DATA, "tennis-cands.json"));
   const tennisK = (kt?.cands ?? []).filter((c) => new Date(c.start).getTime() > now);
+  const mm = readJson<J>(path.join(DATA, "mma-cands.json"));
+  const mmaK = mmaCands(mm, now);
   const results = readJson<Record<string, { home: number; away: number }>>(path.join(DATA, "results.json")) ?? {};
   let prev = readJson<{ picks: Pick[] }>(path.join(DATA, "picks.json"));
   if (!prev) prev = await getJson<{ picks: Pick[] }>(`${SITE}/data/picks.json`);
@@ -276,7 +298,7 @@ async function main() {
 
   // 1) candidates, best first
   const isKT = (c: { book: string; league: string }) => c.book === "Kalshi" && SPORT[c.league] === "Tennis";
-  const pool = [...boardCands(bundle, now), ...tennisTotalCands(bundle, tennisCache, now), ...tennisK].sort((a, b) => b.ev - a.ev);
+  const pool = [...boardCands(bundle, now), ...tennisTotalCands(bundle, tennisCache, now), ...tennisK, ...mmaK].sort((a, b) => b.ev - a.ev);
   const cands = pool.filter((c) => c.ev >= (isKT(c) ? 0.03 : MIN_EV));
   const moreCands = pool.filter((c) => c.ev < (isKT(c) ? 0.03 : MIN_EV) && c.ev >= (isKT(c) ? MORE_EV_KT : MORE_EV));
 
@@ -326,6 +348,7 @@ async function main() {
   let whys = 0;
   for (const p of picks) {
     if (p.result || new Date(p.start).getTime() <= now) continue;
+    if (p.sport === "MMA") { const c = mmaK.find((x) => x.matchupId === p.matchupId); if (c?.why) p.why = c.why; if (c) p.start = c.start; continue; }
     if (p.sport === "Tennis" && p.matchupId.startsWith("KX")) { const c = tennisK.find((x) => x.matchupId === p.matchupId && x.side === p.side); if (c?.why) p.why = c.why; continue; }
     try { const w = await buildWhy(p); if (w.length) { p.why = w; whys++; } } catch {}
   }
@@ -351,7 +374,11 @@ async function main() {
   for (const p of picks) {
     if (p.result) continue;
     const started = new Date(p.start).getTime();
-    if (p.sport === "Tennis" && p.matchupId.startsWith("KX")) {
+    if (p.sport === "MMA") {
+      const w = mm?.results?.[p.pk ?? ""];
+      if (w === "void") { p.result = "void"; p.score = "Draw / no contest"; }
+      else if (w) { const mine = p.side === "home" ? p.home.name : p.away.name; p.result = nm(w).endsWith(nm(mine.split(" ").pop())) ? "win" : "loss"; p.score = `${w} won`; }
+    } else if (p.sport === "Tennis" && p.matchupId.startsWith("KX")) {
       if (p.market === "total") {
         const r = kt?.totals?.[`${p.matchupId}|${p.line}`];
         if (r === "yes" || r === "no") { const over = r === "yes"; p.result = (p.side === "over") === over ? "win" : "loss"; p.score = `${over ? "Over" : "Under"} ${p.line} games`; }

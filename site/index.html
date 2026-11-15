@@ -90,8 +90,8 @@ main{padding:12px 10px}
 
 <script>
 "use strict";
-const SPORTS = ["NBA", "NHL", "College Hoops", "Soccer", "Tennis"];
-const ICON = { All: "🔥", NBA: "🏀", NHL: "🏒", "College Hoops": "🏀", Soccer: "⚽", Tennis: "🎾", WNBA: "🏀", MLB: "⚾" };
+const SPORTS = ["NBA", "NHL", "College Hoops", "Soccer", "Tennis", "MMA"];
+const ICON = { All: "🔥", NBA: "🏀", NHL: "🏒", "College Hoops": "🏀", Soccer: "⚽", Tennis: "🎾", MMA: "🥊", WNBA: "🏀", MLB: "⚾" };
 const LG = { EPL: "Premier League", LALIGA: "La Liga", SERIEA: "Serie A", BUNDESLIGA: "Bundesliga", LIGUE1: "Ligue 1", MLS: "MLS", UCL: "Champions League", NCAAB: "College Hoops", ATP: "ATP", WTA: "WTA" };
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = (o) => (o > 0 ? "+" + o : String(o));
@@ -130,7 +130,7 @@ function pickCard(p, top) {
   const badge = p.result ? `<span class="badge ${p.result}">${p.result.toUpperCase()}</span>` : live ? `<span class="badge live">● LIVE</span>` : p.state === "post" && !p.result ? `<span class="badge">⏳ Awaiting result</span>` : waiting ? `<span class="badge">⏳ Running late</span>` : top ? `<span class="badge top">TOP PICK</span>` : "";
   return `<div class="pick ${top && !p.result ? "top" : ""}">
     <div class="ph"><span class="lg">${ICON[p.sport] || ""} ${esc(p.tourney || LG[p.league] || p.league)} · ${esc(when(p.start))}</span>${badge}</div>
-    <div class="mu">${logo(p.away)}<b>${esc(p.away.short)}</b> ${p.sport === "Tennis" ? "vs" : "@"} <b>${esc(p.home.short)}</b>${logo(p.home)}</div>
+    <div class="mu">${logo(p.away)}<b>${esc(p.away.short)}</b> ${p.sport === "Tennis" || p.sport === "MMA" ? "vs" : "@"} <b>${esc(p.home.short)}</b>${logo(p.home)}</div>
     <div class="bet"><div class="l">${t ? logo(t) : ""}${esc(p.label)}</div><div class="odds"><b>${fmt(p.odds)}</b><small>${esc(p.book)}</small></div></div>
     <div class="meta"><span>Fair <b>${pctS(p.fair)}</b></span><span class="g">Edge <b>+${(p.ev * 100).toFixed(1)}%</b></span><span>${p.books} books</span>${mine ? `<span>${mine}</span>` : ""}${p.result ? `<span><b>${esc(p.score || "")}</b></span>` : ""}</div>
     ${p.why && p.why.length && !p.result ? `<ul class="why"><b>WHY</b>${p.why.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>` : ""}

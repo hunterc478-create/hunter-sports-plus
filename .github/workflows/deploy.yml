@@ -81,6 +81,12 @@ jobs:
       - name: Tennis ratings + Kalshi matches
         run: node scripts/tennis.mjs || echo "Tennis step failed; keeping the last picks"
 
+      - name: MMA fights (Kalshi + books)
+        env:
+          THE_ODDS_API_KEY: ${{ secrets.THE_ODDS_API_KEY }}
+          FORCE_PROPS: ${{ inputs.load_props }}
+        run: node scripts/mma.mjs || echo "MMA step failed; keeping the last picks"
+
       - name: Make, close and grade picks
         env:
           SITE_URL: ${{ steps.pages.outputs.base_url }}
