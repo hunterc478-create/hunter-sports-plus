@@ -132,8 +132,10 @@ async function main() {
       if (S.ask > 0.03 && S.ask < 0.97) { const cost = S.ask + fee(S.ask); per[S.name].push({ name: "Kalshi", odds: amer(cost) }); }
     }
     // the why
-    const why = [];
-    if (card) {
+    const old = (prev?.fights || []).find((x) => x.id === f.id);
+    const why = old?.why?.some((w) => /'s last/.test(w)) && now - new Date(old.whyAt || 0).getTime() < 12 * 3600_000 ? old.why : [];
+    const whyAt = why.length ? old.whyAt : new Date(now).toISOString();
+    if (card && !why.length) {
       const ath = await Promise.all(card.f.map((x) => athlete(x.id)));
       const fa = card.f.find((x) => last(x.name) === last(A.name)) || card.f[0], fb = card.f.find((x) => x !== fa);
       const ia = card.f.indexOf(fa), ib = card.f.indexOf(fb);
@@ -151,21 +153,25 @@ async function main() {
       // recent fights: last 3 results and how they ended
       for (const [x, nm] of [[fa, A.name], [fb, B.name]]) {
         const j = await get(`https://site.web.api.espn.com/apis/common/v3/sports/mma/athletes/${x.id}/overview`);
-        const fh = j?.fightHistory;
-        const dict = j?.events || j?.fights || j?.competitions || {};
-        const rows = (Array.isArray(fh) ? fh : fh?.events || []).map((k) => (typeof k === "string" ? dict[k] : k)).filter(Boolean);
-        if (!sample && j) sample = JSON.stringify({ keys: Object.keys(j), row: rows[0] || dict[Object.keys(dict)[0]] }).slice(0, 900);
-        const res = rows.slice(0, 3).map((r) => {
-          const out = String(r.gameResult || r.result || r.outcome || "").toUpperCase().slice(0, 1);
-          const how = String(r.decision || r.method || r.resultDetail || "").replace(/decision - /i, "Dec ").replace(/\s*\(.*\)/, "");
-          return out ? out + (how ? ` (${how})` : "") : "";
-        }).filter(Boolean);
+        const fh = Array.isArray(j?.fightHistory) ? j.fightHistory.slice(0, 3) : [];
+        const res = [];
+        for (const k of fh) {
+          const m = /e:(\d+)~c:(\d+)/.exec(String(k)); if (!m) continue;
+          const c = await get(`https://sports.core.api.espn.com/v2/sports/mma/leagues/ufc/events/${m[1]}/competitions/${m[2]}`);
+          if (!c) continue;
+          const me = (c.competitors || []).find((y) => String(y.id) === String(x.id));
+          if (!sample) sample = JSON.stringify({ keys: Object.keys(c), me, status: c.status, type: c.type }).slice(0, 900);
+          if (!me || me.winner == null) continue;
+          let how = "";
+          if (c.status?.$ref) { const st = await get(c.status.$ref); how = st?.result?.shortDisplayName || st?.result?.displayName || st?.type?.shortDetail || ""; }
+          res.push((me.winner ? "W" : "L") + (how ? ` (${how})` : ""));
+        }
         if (res.length) why.push(`${nm}'s last ${res.length}: ${res.join(", ")}`);
       }
     }
     out.push({ id: f.id, pk, event: card?.event || "UFC", start: card?.date || f.start,
       a: { name: A.name, espn: card?.f.find((x) => last(x.name) === last(A.name))?.id }, b: { name: B.name, espn: card?.f.find((x) => last(x.name) === last(B.name))?.id },
-      fairA: r3(pA), nBooks: fairs.length, books: per, why });
+      fairA: r3(pA), nBooks: fairs.length, books: per, why, whyAt });
   }
   fs.writeFileSync(path.join(DATA, "mma-cands.json"), JSON.stringify({ updatedAt: new Date(now).toISOString(), fights: out, results }));
   console.log(`mma: ${fights.length} open Kalshi fights · ${out.length} with 4+ books · ${noBooks} without book lines · ${cards.length} ESPN fights · ${Object.keys(results).length} results`);
