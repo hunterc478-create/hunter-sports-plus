@@ -152,8 +152,9 @@ async function main() {
       for (const [x, nm] of [[fa, A.name], [fb, B.name]]) {
         const j = await get(`https://site.web.api.espn.com/apis/common/v3/sports/mma/athletes/${x.id}/overview`);
         const fh = j?.fightHistory;
-        if (!sample && fh) sample = JSON.stringify(fh).slice(0, 700);
-        const rows = Array.isArray(fh?.events) ? fh.events : Array.isArray(fh) ? fh : [];
+        const dict = j?.events || j?.fights || j?.competitions || {};
+        const rows = (Array.isArray(fh) ? fh : fh?.events || []).map((k) => (typeof k === "string" ? dict[k] : k)).filter(Boolean);
+        if (!sample && j) sample = JSON.stringify({ keys: Object.keys(j), row: rows[0] || dict[Object.keys(dict)[0]] }).slice(0, 900);
         const res = rows.slice(0, 3).map((r) => {
           const out = String(r.gameResult || r.result || r.outcome || "").toUpperCase().slice(0, 1);
           const how = String(r.decision || r.method || r.resultDetail || "").replace(/decision - /i, "Dec ").replace(/\s*\(.*\)/, "");
