@@ -148,7 +148,19 @@ async function main() {
       if (a1?.stance && b1?.stance && a1.stance !== b1.stance) why.push(`Stances: ${A.name} ${a1.stance.toLowerCase()}, ${B.name} ${b1.stance.toLowerCase()}`);
       const ex = (r) => r.w + r.l ? Math.round((100 * r.w) / (r.w + r.l)) : null;
       if (ra.w + ra.l >= 5 && rb.w + rb.l >= 5) why.push(`Win rate: ${A.name} ${ex(ra)}% · ${B.name} ${ex(rb)}% over their careers`);
-      if (!sample) sample = { a: a1, rec: await recent(fa.id).then((j) => j && Object.keys(j)) };
+      // recent fights: last 3 results and how they ended
+      for (const [x, nm] of [[fa, A.name], [fb, B.name]]) {
+        const j = await get(`https://site.web.api.espn.com/apis/common/v3/sports/mma/athletes/${x.id}/overview`);
+        const fh = j?.fightHistory;
+        if (!sample && fh) sample = JSON.stringify(fh).slice(0, 700);
+        const rows = Array.isArray(fh?.events) ? fh.events : Array.isArray(fh) ? fh : [];
+        const res = rows.slice(0, 3).map((r) => {
+          const out = String(r.gameResult || r.result || r.outcome || "").toUpperCase().slice(0, 1);
+          const how = String(r.decision || r.method || r.resultDetail || "").replace(/decision - /i, "Dec ").replace(/\s*\(.*\)/, "");
+          return out ? out + (how ? ` (${how})` : "") : "";
+        }).filter(Boolean);
+        if (res.length) why.push(`${nm}'s last ${res.length}: ${res.join(", ")}`);
+      }
     }
     out.push({ id: f.id, pk, event: card?.event || "UFC", start: card?.date || f.start,
       a: { name: A.name, espn: card?.f.find((x) => last(x.name) === last(A.name))?.id }, b: { name: B.name, espn: card?.f.find((x) => last(x.name) === last(B.name))?.id },
@@ -156,7 +168,7 @@ async function main() {
   }
   fs.writeFileSync(path.join(DATA, "mma-cands.json"), JSON.stringify({ updatedAt: new Date(now).toISOString(), fights: out, results }));
   console.log(`mma: ${fights.length} open Kalshi fights · ${out.length} with 4+ books · ${noBooks} without book lines · ${cards.length} ESPN fights · ${Object.keys(results).length} results`);
-  if (sample) console.log(`mma: athlete sample ${JSON.stringify(sample).slice(0, 300)}`);
+  if (sample) console.log(`mma: fight history sample ${sample}`);
   if (out[0]) console.log(`mma: why sample ${out[0].a.name} vs ${out[0].b.name}:\n  - ${out[0].why.join("\n  - ")}`);
 }
 main().catch((e) => { console.error("mma failed:", e); });
